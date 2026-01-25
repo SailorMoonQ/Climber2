@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Link } from 'expo-router';
+import { requestBluetoothPermission } from "@/hooks/bluetoothPermission";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -17,10 +18,13 @@ export default function HomeScreen() {
     { title: '用户管理/运动数据', icon: 'people-outline', href: '/user-management' },
   ];
 
+  requestBluetoothPermission();
+
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.buttonContainer}>
         {buttonData.map((button, index) => (
+          // @ts-ignore
           <Link key={index} href={button.href} asChild>
             <TouchableOpacity style={styles.button}>
               <Ionicons name={button.icon as any} size={32} color={tintColor} style={styles.icon} />

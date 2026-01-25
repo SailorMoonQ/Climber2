@@ -1,19 +1,15 @@
 // Bluetooth Service UUIDs
 export const BLUETOOTH_SERVICES = {
-  // 主服务UUID
-  MAIN_SERVICE: 'your-main-service-uuid-here',
-  // 通信服务UUID
-  COMMUNICATION_SERVICE: 'your-communication-service-uuid-here',
+  // 自定义服务UUID
+  MAIN_SERVICE: '00009608-0000-1000-8000-00805F9B34FB',
 };
 
 // Bluetooth Characteristic UUIDs
 export const BLUETOOTH_CHARACTERISTICS = {
-  // 发送数据特征
-  TX_CHARACTERISTIC: 'your-tx-characteristic-uuid-here',
-  // 接收数据特征
-  RX_CHARACTERISTIC: 'your-rx-characteristic-uuid-here',
-  // 状态特征
-  STATUS_CHARACTERISTIC: 'your-status-characteristic-uuid-here',
+  // 读写特征值UUID
+  WRITE_CHARACTERISTIC: '00009600-0000-1000-8000-00805F9B34FB',
+  // 通知特征值UUID
+  NOTIFY_CHARACTERISTIC: '00009601-0000-1000-8000-00805F9B34FB',
 };
 
 // 蓝牙设备名称前缀

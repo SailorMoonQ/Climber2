@@ -1,124 +1,149 @@
-import { StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Modal, TextInput, Pressable, Alert } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-
-// 模拟用户数据
-const mockUsers = [
-  {
-    id: '1',
-    name: '张三',
-    age: 25,
-    gender: '男',
-    height: 175,
-    weight: 70,
-    avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
-  },
-  {
-    id: '2',
-    name: '李四',
-    age: 30,
-    gender: '女',
-    height: 160,
-    weight: 55,
-    avatar: 'https://randomuser.me/api/portraits/women/44.jpg',
-  },
-  {
-    id: '3',
-    name: '王五',
-    age: 28,
-    gender: '男',
-    height: 180,
-    weight: 80,
-    avatar: 'https://randomuser.me/api/portraits/men/55.jpg',
-  },
-];
-
-// 模拟运动数据
-const mockExerciseData = [
-  {
-    id: '1',
-    userId: '1',
-    date: '2023-10-01',
-    type: '自由训练',
-    duration: 30,
-    distance: 5.2,
-    calories: 350,
-    averageSpeed: 10.4,
-    maxSpeed: 15.2,
-    heartRate: { avg: 145, max: 175 },
-  },
-  {
-    id: '2',
-    userId: '1',
-    date: '2023-09-28',
-    type: '动态评估',
-    duration: 20,
-    distance: 3.8,
-    calories: 280,
-    averageSpeed: 11.4,
-    maxSpeed: 16.8,
-    heartRate: { avg: 152, max: 180 },
-  },
-  {
-    id: '3',
-    userId: '2',
-    date: '2023-09-30',
-    type: '自由训练',
-    duration: 45,
-    distance: 7.5,
-    calories: 480,
-    averageSpeed: 10.0,
-    maxSpeed: 14.5,
-    heartRate: { avg: 138, max: 165 },
-  },
-];
+import DatabaseService, { User, ExerciseRecord } from '@/services/DatabaseService';
 
 export default function UserManagementScreen() {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [showUserData, setShowUserData] = useState(false);
-  const [showUserList, setShowUserList] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    gender: '',
+    age: '',
+    height: '',
+    weight: ''
+  });
 
-  const handleUserSelect = useCallback((user: any) => {
+  // 初始化数据库和加载用户数据
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await DatabaseService.init();
+        const userList = await DatabaseService.getAllUsers();
+        setUsers(userList);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // 加载选中用户的运动记录
+  useEffect(() => {
+    const loadExerciseRecords = async () => {
+      if (selectedUser) {
+        try {
+          const records = await DatabaseService.getExerciseRecordsByUserId(selectedUser.id);
+          setExerciseRecords(records);
+        } catch (error) {
+          console.error('Failed to load exercise records:', error);
+          setExerciseRecords([]);
+        }
+      }
+    };
+
+    loadExerciseRecords();
+  }, [selectedUser]);
+
+  const handleUserSelect = useCallback((user: User) => {
     setSelectedUser(user);
-    setShowUserList(false);
-    setShowUserData(true);
+    // 加载选中用户的运动记录
+    const loadExerciseRecords = async () => {
+      try {
+        const records = await DatabaseService.getExerciseRecordsByUserId(user.id);
+        setExerciseRecords(records);
+      } catch (error) {
+        console.error('Failed to load exercise records:', error);
+        setExerciseRecords([]);
+      }
+    };
+    loadExerciseRecords();
   }, []);
 
-  const handleBackToUserList = useCallback(() => {
-    setShowUserList(true);
-    setShowUserData(false);
-    setSelectedUser(null);
+  const handleEditUser = useCallback((user: User) => {
+    setEditingUser(user);
+    setEditForm({
+      name: user.name,
+      gender: user.gender,
+      age: user.age.toString(),
+      height: user.height.toString(),
+      weight: user.weight.toString()
+    });
+    setShowEditModal(true);
   }, []);
 
-  const getUserExerciseData = useCallback((userId: string) => {
-    return mockExerciseData.filter(data => data.userId === userId);
-  }, []);
+  const handleSaveUser = useCallback(async () => {
+    if (!editingUser || !editForm.name || !editForm.gender || !editForm.age) {
+      Alert.alert('错误', '请填写完整的用户信息');
+      return;
+    }
 
-  const renderUserItem = useCallback(({ item }: { item: any }) => (
+    try {
+      const updatedUser: User = {
+        ...editingUser,
+        name: editForm.name,
+        gender: editForm.gender,
+        age: parseInt(editForm.age),
+        height: parseInt(editForm.height),
+        weight: parseInt(editForm.weight)
+      };
+
+      await DatabaseService.updateUser(updatedUser);
+      // 更新用户列表
+      const updatedUsers = users.map(user => 
+        user.id === updatedUser.id ? updatedUser : user
+      );
+      setUsers(updatedUsers);
+      // 如果当前选中的用户是被编辑的用户，也更新选中用户
+      if (selectedUser?.id === updatedUser.id) {
+        setSelectedUser(updatedUser);
+      }
+      setShowEditModal(false);
+      Alert.alert('成功', '用户信息已更新');
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      Alert.alert('错误', '更新用户信息失败');
+    }
+  }, [editingUser, editForm, users, selectedUser]);
+
+  const renderUserItem = useCallback(({ item }: { item: User }) => (
     <TouchableOpacity 
       style={styles.userItem}
       onPress={() => handleUserSelect(item)}
     >
       <ThemedView style={styles.userAvatar}>
-        <Ionicons name="person" size={30} color={tintColor} />
+        <Ionicons name="person" size={40} color={tintColor} />
       </ThemedView>
-      <ThemedView style={styles.userInfo}>
-        <ThemedText style={styles.userName}>{item.name}</ThemedText>
-        <ThemedText style={styles.userDetails}>
-          {item.gender} | {item.age}岁 | {item.height}cm | {item.weight}kg
-        </ThemedText>
-      </ThemedView>
-      <Ionicons name="chevron-forward" size={20} color={tintColor} />
+      <ThemedText style={styles.userName}>{item.name}</ThemedText>
+      <ThemedText style={styles.userDetails}>
+        {item.gender} | {item.age}岁
+      </ThemedText>
+      <TouchableOpacity 
+        style={styles.editButton} 
+        onPress={(e) => {
+          e.stopPropagation(); // 防止触发父元素的点击事件
+          handleEditUser(item);
+        }}
+      >
+        <Ionicons name="create-outline" size={16} color={tintColor} />
+      </TouchableOpacity>
     </TouchableOpacity>
-  ), [handleUserSelect, tintColor]);
+  ), [handleUserSelect, handleEditUser, tintColor]);
 
-  const renderExerciseItem = useCallback(({ item }: { item: any }) => (
+  const renderExerciseItem = useCallback(({ item }: { item: ExerciseRecord }) => (
     <ThemedView style={styles.exerciseItem}>
       <ThemedView style={styles.exerciseHeader}>
         <ThemedText style={styles.exerciseType}>{item.type}</ThemedText>
@@ -145,21 +170,18 @@ export default function UserManagementScreen() {
     </ThemedView>
   ), [tintColor]);
 
-  const renderUserData = useCallback(() => {
-    if (!selectedUser) return null;
-
-    const userExerciseData = getUserExerciseData(selectedUser.id);
+  const renderSelectedUserSection = useCallback(() => {
+    if (!selectedUser) {
+      return (
+        <ThemedView style={styles.noSelection}>
+          <Ionicons name="person-outline" size={40} color={tintColor} />
+          <ThemedText>请选择一个用户查看运动记录</ThemedText>
+        </ThemedView>
+      );
+    }
 
     return (
-      <ThemedView style={styles.userDataContainer}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={handleBackToUserList}
-        >
-          <Ionicons name="arrow-back" size={20} color={tintColor} />
-          <ThemedText>返回用户列表</ThemedText>
-        </TouchableOpacity>
-        
+      <ThemedView style={styles.selectedUserSection}>
         {/* 用户信息 */}
         <ThemedView style={styles.userProfile}>
           <ThemedView style={styles.profileAvatar}>
@@ -177,22 +199,28 @@ export default function UserManagementScreen() {
           <ThemedView style={styles.statsGrid}>
             <ThemedView style={styles.statsCard}>
               <Ionicons name="time-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.statsValue}>{userExerciseData.reduce((sum, item) => sum + item.duration, 0)}</ThemedText>
+              <ThemedText style={styles.statsValue}>
+                {exerciseRecords.reduce((sum, item) => sum + item.duration, 0)}
+              </ThemedText>
               <ThemedText style={styles.statsLabel}>总时长(分钟)</ThemedText>
             </ThemedView>
             <ThemedView style={styles.statsCard}>
               <Ionicons name="walk-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.statsValue}>{userExerciseData.reduce((sum, item) => sum + item.distance, 0).toFixed(1)}</ThemedText>
+              <ThemedText style={styles.statsValue}>
+                {exerciseRecords.reduce((sum, item) => sum + item.distance, 0).toFixed(1)}
+              </ThemedText>
               <ThemedText style={styles.statsLabel}>总距离(公里)</ThemedText>
             </ThemedView>
             <ThemedView style={styles.statsCard}>
               <Ionicons name="flame-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.statsValue}>{userExerciseData.reduce((sum, item) => sum + item.calories, 0)}</ThemedText>
+              <ThemedText style={styles.statsValue}>
+                {exerciseRecords.reduce((sum, item) => sum + item.calories, 0)}
+              </ThemedText>
               <ThemedText style={styles.statsLabel}>总卡路里</ThemedText>
             </ThemedView>
             <ThemedView style={styles.statsCard}>
               <Ionicons name="calendar-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.statsValue}>{userExerciseData.length}</ThemedText>
+              <ThemedText style={styles.statsValue}>{exerciseRecords.length}</ThemedText>
               <ThemedText style={styles.statsLabel}>运动次数</ThemedText>
             </ThemedView>
           </ThemedView>
@@ -201,12 +229,13 @@ export default function UserManagementScreen() {
         {/* 运动历史 */}
         <ThemedView style={styles.exerciseHistory}>
           <ThemedText type="subtitle">运动历史</ThemedText>
-          {userExerciseData.length > 0 ? (
+          {exerciseRecords.length > 0 ? (
             <FlatList
-              data={userExerciseData}
+              data={exerciseRecords}
               renderItem={renderExerciseItem}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}
+              style={styles.exerciseList}
             />
           ) : (
             <ThemedView style={styles.emptyHistory}>
@@ -217,23 +246,118 @@ export default function UserManagementScreen() {
         </ThemedView>
       </ThemedView>
     );
-  }, [selectedUser, getUserExerciseData, renderExerciseItem, tintColor, handleBackToUserList]);
+  }, [selectedUser, exerciseRecords, renderExerciseItem, tintColor]);
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={tintColor} />
+        <ThemedText style={styles.loadingText}>加载中...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title">用户管理/运动数据</ThemedText>
       
-      {showUserList && (
-        <FlatList
-          data={mockUsers}
-          renderItem={renderUserItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.userList}
-        />
-      )}
+      {/* 用户列表网格 */}
+      <FlatList
+        data={users}
+        renderItem={renderUserItem}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.userGrid}
+        numColumns={4}
+      />
 
-      {showUserData && renderUserData()}
+      {/* 选中用户的运动记录 */}
+      {renderSelectedUserSection()}
+
+      {/* 编辑用户弹窗 */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setShowEditModal(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <ThemedText type="subtitle" style={styles.modalTitle}>编辑用户信息</ThemedText>
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText>姓名</ThemedText>
+              <TextInput
+                style={styles.input}
+                value={editForm.name}
+                onChangeText={(text) => setEditForm({...editForm, name: text})}
+                placeholder="输入姓名"
+              />
+            </ThemedView>
+
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText>性别</ThemedText>
+              <TextInput
+                style={styles.input}
+                value={editForm.gender}
+                onChangeText={(text) => setEditForm({...editForm, gender: text})}
+                placeholder="输入性别"
+              />
+            </ThemedView>
+
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText>年龄</ThemedText>
+              <TextInput
+                style={styles.input}
+                value={editForm.age}
+                onChangeText={(text) => setEditForm({...editForm, age: text})}
+                placeholder="输入年龄"
+                keyboardType="numeric"
+              />
+            </ThemedView>
+
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText>身高(cm)</ThemedText>
+              <TextInput
+                style={styles.input}
+                value={editForm.height}
+                onChangeText={(text) => setEditForm({...editForm, height: text})}
+                placeholder="输入身高"
+                keyboardType="numeric"
+              />
+            </ThemedView>
+
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText>体重(kg)</ThemedText>
+              <TextInput
+                style={styles.input}
+                value={editForm.weight}
+                onChangeText={(text) => setEditForm({...editForm, weight: text})}
+                placeholder="输入体重"
+                keyboardType="numeric"
+              />
+            </ThemedView>
+
+            <ThemedView style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowEditModal(false)}
+              >
+                <ThemedText style={styles.cancelButtonText}>取消</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSaveUser}
+              >
+                <ThemedText style={styles.saveButtonText}>保存</ThemedText>
+              </TouchableOpacity>
+            </ThemedView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -243,16 +367,28 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  userList: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  userGrid: {
     marginTop: 20,
+    justifyContent: 'space-between',
   },
   userItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: '23%',
     backgroundColor: '#f0f0f0',
-    padding: 15,
+    padding: 10,
     borderRadius: 10,
-    marginBottom: 10,
+    marginLeft: 10,
+    marginBottom: 15,
+    alignItems: 'center',
+    position: 'relative',
   },
   userAvatar: {
     width: 50,
@@ -261,27 +397,37 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
-  },
-  userInfo: {
-    flex: 1,
+    marginBottom: 5,
   },
   userName: {
     fontWeight: '600',
-    fontSize: 16,
-    marginBottom: 5,
+    fontSize: 14,
+    marginBottom: 3,
+    textAlign: 'center',
   },
   userDetails: {
-    fontSize: 14,
+    fontSize: 12,
     opacity: 0.7,
+    textAlign: 'center',
   },
-  userDataContainer: {
+  editButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 3,
+  },
+  selectedUserSection: {
     marginTop: 20,
+    flex: 1,
   },
-  backButton: {
-    flexDirection: 'row',
+  noSelection: {
+    marginTop: 20,
     alignItems: 'center',
-    marginBottom: 20,
+    padding: 40,
+    flex: 1,
+    justifyContent: 'center',
   },
   userProfile: {
     alignItems: 'center',
@@ -334,6 +480,9 @@ const styles = StyleSheet.create({
   exerciseHistory: {
     flex: 1,
   },
+  exerciseList: {
+    flex: 1,
+  },
   exerciseItem: {
     backgroundColor: '#f0f0f0',
     padding: 15,
@@ -367,5 +516,58 @@ const styles = StyleSheet.create({
   emptyHistory: {
     alignItems: 'center',
     padding: 40,
+  },
+  // 弹窗样式
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 10,
+    width: '80%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    padding: 10,
+    marginTop: 5,
+    fontSize: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  modalButton: {
+    padding: 10,
+    borderRadius: 5,
+    width: '48%',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  cancelButtonText: {
+    color: '#333',
+  },
+  saveButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
 });

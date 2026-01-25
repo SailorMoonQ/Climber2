@@ -1,15 +1,20 @@
 import { Stack } from 'expo-router';
-import React from 'react';
+import React, { useContext } from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useRouter } from 'expo-router';
+import { OrganizationContext } from '@/contexts/OrganizationContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   const router = useRouter();
+  const organizationContext = useContext(OrganizationContext);
+  
+  // 如果Context不存在，使用默认值
+  const organizationName = organizationContext?.organizationName || '系统名称';
 
   return (
     <Stack screenOptions={{ 
@@ -26,7 +31,7 @@ export default function TabLayout() {
         </View>
       ),
     }}>
-      <Stack.Screen name="index" options={{title: '系统名称'}} />
+      <Stack.Screen name="index" options={{title: organizationName}} />
     </Stack>
   );
 }

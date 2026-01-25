@@ -6,7 +6,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Link } from 'expo-router';
 import { requestBluetoothPermission } from "@/hooks/bluetoothPermission";
-import { Image } from "expo-image";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -43,11 +42,6 @@ export default function HomeScreen() {
     </ThemedView>
   );
 }
-
-// 设置动态标题
-export const options = {
-  title: '动态姿势评估',
-};
 
 const styles = StyleSheet.create({
   container: {

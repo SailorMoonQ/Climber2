@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Stack } from 'expo-router';
+import { OrganizationContext } from '@/contexts/OrganizationContext';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
@@ -10,6 +11,34 @@ export default function SettingsScreen() {
   const [selectedLockTime, setSelectedLockTime] = useState('3分钟');
   const [versionMode, setVersionMode] = useState('单机版');
   const [language, setLanguage] = useState('中文');
+  const [organizationNameInput, setOrganizationNameInput] = useState('');
+  
+  const organizationContext = useContext(OrganizationContext);
+  
+  // 从Context中获取当前机构名称
+  useEffect(() => {
+    if (organizationContext?.organizationName) {
+      setOrganizationNameInput(organizationContext.organizationName);
+    }
+  }, [organizationContext?.organizationName]);
+  
+  // 保存机构名称到数据库
+  const handleSaveOrganizationName = async () => {
+    try {
+      if (!organizationNameInput.trim()) {
+        Alert.alert('提示', '请输入机构名称');
+        return;
+      }
+      
+      if (organizationContext) {
+        await organizationContext.setOrganizationName(organizationNameInput.trim());
+        Alert.alert('成功', '机构名称已保存');
+      }
+    } catch (error) {
+      console.error('Error saving organization name:', error);
+      Alert.alert('错误', '保存机构名称失败');
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? Colors.dark.background : Colors.light.background }]}>
@@ -28,11 +57,21 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>机构信息</Text>
         <View style={styles.formItem}>
           <Text style={[styles.label, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>机构名称:</Text>
-          <TextInput 
-            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? Colors.dark.text : Colors.light.text }]} 
-            placeholder="请输入机构名称"
-            placeholderTextColor={isDarkMode ? '#888' : '#999'}
-          />
+          <View style={styles.inputContainer}>
+            <TextInput 
+              style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? Colors.dark.text : Colors.light.text }]} 
+              placeholder="请输入机构名称"
+              placeholderTextColor={isDarkMode ? '#888' : '#999'}
+              value={organizationNameInput}
+              onChangeText={setOrganizationNameInput}
+            />
+            <TouchableOpacity 
+              style={[styles.saveButton, { backgroundColor: isDarkMode ? Colors.dark.tint : Colors.light.tint }]}
+              onPress={handleSaveOrganizationName}
+            >
+              <Text style={styles.saveButtonText}>保存</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.formItem}>
           <Text style={[styles.label, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>Logo:</Text>
@@ -206,6 +245,21 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 5,
     marginRight: 15,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  saveButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+    marginLeft: 10,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   uploadButton: {
     paddingHorizontal: 20,

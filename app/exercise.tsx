@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Modal } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -81,6 +81,11 @@ export default function ExerciseScreen() {
     setRemainingTime(exerciseTime);
     setHeartRateAlert(false);
   };
+
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.setOptions({title: `动态姿势评估 ${'李丽'}`});
+  }, [navigation]);
 
   // 倒计时效果
   useEffect(() => {
@@ -483,6 +488,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
   },
+
   heartRateAlert: {
     position: 'absolute',
     top: 0,

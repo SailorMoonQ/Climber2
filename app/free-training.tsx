@@ -166,8 +166,6 @@ export default function FreeTrainingScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">自由训练</ThemedText>
-      
       {/* 蓝牙连接状态 */}
       {renderConnectionStatus()}
 
@@ -360,11 +358,17 @@ export default function FreeTrainingScreen() {
   );
 }
 
+// 设置动态标题
+export const options = {
+  title: '自由训练',
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
   },
+
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',

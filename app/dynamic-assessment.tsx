@@ -2,11 +2,12 @@ import { StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput } fro
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import useBluetooth from '../hooks/useBluetooth';
 import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '@/constants/bluetoothConfig';
+import { useNavigation } from "expo-router";
 
 export default function DynamicAssessmentScreen() {
   const colorScheme = useColorScheme();
@@ -16,7 +17,7 @@ export default function DynamicAssessmentScreen() {
   const [assessmentData, setAssessmentData] = useState<any>(null);
   const [trainingData, setTrainingData] = useState<any>(null);
   const [showResultModal, setShowResultModal] = useState(false);
-  
+
   // 评估流程状态管理
   const [assessmentState, setAssessmentState] = useState<'ready' | 'assessing' | 'levelResult' | 'trainingConfig' | 'training' | 'trainingResult'>('ready');
   const [countdown, setCountdown] = useState(60);
@@ -24,19 +25,19 @@ export default function DynamicAssessmentScreen() {
   const [selectedTrainingParams, setSelectedTrainingParams] = useState<any>(null);
   const [trainingDuration, setTrainingDuration] = useState(300); // 默认5分钟训练
   const [trainingCountdown, setTrainingCountdown] = useState(300);
-  
+
   // 评估参数
   const [config, setConfig] = useState({
     duration: 60, // 评估时长（秒）
     resistanceLevel: 5, // 阻力级别
     speed: 5, // 速度
   });
-  
+
   // 不同等级对应的训练参数
   const levelParams = {
-    1: { resistance: 3, speed: 6, duration: 300 },
-    2: { resistance: 5, speed: 7, duration: 300 },
-    3: { resistance: 8, speed: 8, duration: 300 }
+    1: {resistance: 3, speed: 6, duration: 300},
+    2: {resistance: 5, speed: 7, duration: 300},
+    3: {resistance: 8, speed: 8, duration: 300}
   };
 
   const {
@@ -51,6 +52,11 @@ export default function DynamicAssessmentScreen() {
     disconnectFromDevice,
     sendData
   } = useBluetooth();
+
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.setOptions({title: '动态评估'});
+  }, [navigation]);
 
   // 倒计时效果
   useEffect(() => {
@@ -129,13 +135,13 @@ export default function DynamicAssessmentScreen() {
 
   const handleConfirmLevel = useCallback(() => {
     if (!assessmentLevel) return;
-    
+
     // 根据等级设置训练参数
     const params = levelParams[assessmentLevel];
     setSelectedTrainingParams(params);
     setTrainingDuration(params.duration);
     setTrainingCountdown(params.duration);
-    
+
     // 等级1直接进入训练，等级2和3可以调整参数
     if (assessmentLevel === 1) {
       // 直接进入训练
@@ -224,27 +230,27 @@ export default function DynamicAssessmentScreen() {
       case BluetoothConnectionStatus.CONNECTED:
         return (
           <ThemedView style={[styles.statusContainer, styles.connectedStatus]}>
-            <Ionicons name="bluetooth" size={16} color="white" />
+            <Ionicons name="bluetooth" size={16} color="white"/>
             <ThemedText style={styles.statusText}>已连接: {connectedDevice?.name}</ThemedText>
             <TouchableOpacity onPress={handleDisconnectDevice} style={styles.disconnectButton}>
-              <Ionicons name="close" size={16} color="white" />
+              <Ionicons name="close" size={16} color="white"/>
             </TouchableOpacity>
           </ThemedView>
         );
       case BluetoothConnectionStatus.CONNECTING:
         return (
           <ThemedView style={[styles.statusContainer, styles.connectingStatus]}>
-            <Ionicons name="bluetooth" size={16} color="white" />
+            <Ionicons name="bluetooth" size={16} color="white"/>
             <ThemedText style={styles.statusText}>正在连接...</ThemedText>
           </ThemedView>
         );
       case BluetoothConnectionStatus.DISCONNECTED:
         return (
           <ThemedView style={[styles.statusContainer, styles.disconnectedStatus]}>
-            <Ionicons name="bluetooth-outline" size={16} color="white" />
+            <Ionicons name="bluetooth-outline" size={16} color="white"/>
             <ThemedText style={styles.statusText}>未连接</ThemedText>
             <TouchableOpacity onPress={() => setShowDeviceList(true)} style={styles.connectButton}>
-              <Ionicons name="search" size={16} color="white" />
+              <Ionicons name="search" size={16} color="white"/>
             </TouchableOpacity>
           </ThemedView>
         );
@@ -263,16 +269,16 @@ export default function DynamicAssessmentScreen() {
             <ThemedView style={styles.countdownCircle}>
               <ThemedText type="title" style={styles.countdownText}>准备</ThemedText>
             </ThemedView>
-            <TouchableOpacity 
-              style={[styles.controlButton, styles.startButton]} 
+            <TouchableOpacity
+              style={[styles.controlButton, styles.startButton]}
               onPress={handleStartAssessment}
             >
-              <Ionicons name="play" size={24} color="white" />
+              <Ionicons name="play" size={24} color="white"/>
               <ThemedText style={styles.controlButtonText}>开始评估</ThemedText>
             </TouchableOpacity>
           </ThemedView>
         );
-      
+
       case 'assessing':
         return (
           <ThemedView style={styles.flowSection}>
@@ -281,16 +287,16 @@ export default function DynamicAssessmentScreen() {
               <ThemedText type="title" style={styles.countdownText}>{countdown}</ThemedText>
             </ThemedView>
             <ThemedText style={styles.countdownLabel}>秒</ThemedText>
-            <TouchableOpacity 
-              style={[styles.controlButton, styles.stopButton]} 
+            <TouchableOpacity
+              style={[styles.controlButton, styles.stopButton]}
               onPress={handleStopAssessment}
             >
-              <Ionicons name="stop" size={24} color="white" />
+              <Ionicons name="stop" size={24} color="white"/>
               <ThemedText style={styles.controlButtonText}>停止评估</ThemedText>
             </TouchableOpacity>
           </ThemedView>
         );
-      
+
       case 'levelResult':
         return (
           <ThemedView style={styles.flowSection}>
@@ -299,15 +305,15 @@ export default function DynamicAssessmentScreen() {
               <ThemedText type="title" style={styles.levelText}>{assessmentLevel}</ThemedText>
             </ThemedView>
             <ThemedText style={styles.levelLabel}>评估等级</ThemedText>
-            <TouchableOpacity 
-              style={[styles.controlButton, styles.confirmButton]} 
+            <TouchableOpacity
+              style={[styles.controlButton, styles.confirmButton]}
               onPress={handleConfirmLevel}
             >
               <ThemedText style={styles.controlButtonText}>确认</ThemedText>
             </TouchableOpacity>
           </ThemedView>
         );
-      
+
       case 'trainingConfig':
         return (
           <ThemedView style={styles.flowSection}>
@@ -327,24 +333,24 @@ export default function DynamicAssessmentScreen() {
               </ThemedView>
             </ThemedView>
             {assessmentLevel !== 1 && (
-              <TouchableOpacity 
-                style={[styles.controlButton, styles.adjustButton]} 
+              <TouchableOpacity
+                style={[styles.controlButton, styles.adjustButton]}
                 onPress={handleAdjustParams}
               >
-                <Ionicons name="settings-outline" size={20} color="white" />
+                <Ionicons name="settings-outline" size={20} color="white"/>
                 <ThemedText style={styles.controlButtonText}>调整参数</ThemedText>
               </TouchableOpacity>
             )}
-            <TouchableOpacity 
-              style={[styles.controlButton, styles.startButton]} 
+            <TouchableOpacity
+              style={[styles.controlButton, styles.startButton]}
               onPress={startTraining}
             >
-              <Ionicons name="play" size={24} color="white" />
+              <Ionicons name="play" size={24} color="white"/>
               <ThemedText style={styles.controlButtonText}>开始训练</ThemedText>
             </TouchableOpacity>
           </ThemedView>
         );
-      
+
       case 'training':
         return (
           <ThemedView style={styles.flowSection}>
@@ -357,24 +363,24 @@ export default function DynamicAssessmentScreen() {
             <ThemedText style={styles.countdownLabel}>剩余时间</ThemedText>
           </ThemedView>
         );
-      
+
       case 'trainingResult':
         return (
           <ThemedView style={styles.flowSection}>
             <ThemedView style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+              <Ionicons name="checkmark-circle" size={80} color="#4CAF50"/>
             </ThemedView>
             <ThemedText type="subtitle" style={styles.flowTitle}>训练完成!</ThemedText>
             <ThemedText style={styles.resultText}>恭喜你完成了本次训练</ThemedText>
-            <TouchableOpacity 
-              style={[styles.controlButton, styles.completeButton]} 
+            <TouchableOpacity
+              style={[styles.controlButton, styles.completeButton]}
               onPress={handleCompleteTraining}
             >
               <ThemedText style={styles.controlButtonText}>完成</ThemedText>
             </TouchableOpacity>
           </ThemedView>
         );
-      
+
       default:
         return null;
     }
@@ -383,7 +389,7 @@ export default function DynamicAssessmentScreen() {
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title">动态评估</ThemedText>
-      
+
       {/* 蓝牙连接状态 */}
       {renderConnectionStatus()}
 
@@ -396,11 +402,11 @@ export default function DynamicAssessmentScreen() {
             <ThemedText>阻力: {config.resistanceLevel}</ThemedText>
             <ThemedText>速度: {config.speed}</ThemedText>
           </ThemedView>
-          <TouchableOpacity 
-            style={styles.configButton} 
+          <TouchableOpacity
+            style={styles.configButton}
             onPress={() => setShowConfigModal(true)}
           >
-            <Ionicons name="settings-outline" size={20} color={tintColor} />
+            <Ionicons name="settings-outline" size={20} color={tintColor}/>
             <ThemedText style={styles.configButtonText}>调整参数</ThemedText>
           </TouchableOpacity>
         </ThemedView>
@@ -425,35 +431,35 @@ export default function DynamicAssessmentScreen() {
       )}
 
       {/* 设备列表模态框 */}
-      <Modal 
-        visible={showDeviceList} 
-        animationType="slide" 
+      <Modal
+        visible={showDeviceList}
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setShowDeviceList(false)}
       >
         <ThemedView style={styles.modalOverlay}>
           <ThemedView style={styles.modalContent}>
             <ThemedText type="subtitle" style={styles.modalTitle}>选择设备</ThemedText>
-            <TouchableOpacity 
-              style={styles.refreshButton} 
+            <TouchableOpacity
+              style={styles.refreshButton}
               onPress={startScan}
               disabled={scanning}
             >
-              <Ionicons 
-                name={scanning ? "refresh-circle" : "refresh"} 
-                size={20} 
-                color={tintColor} 
+              <Ionicons
+                name={scanning ? "refresh-circle" : "refresh"}
+                size={20}
+                color={tintColor}
               />
               <ThemedText>{scanning ? "扫描中..." : "刷新设备"}</ThemedText>
             </TouchableOpacity>
             <ScrollView style={styles.deviceList}>
               {devices.map((device) => (
-                <TouchableOpacity 
-                  key={device.id} 
+                <TouchableOpacity
+                  key={device.id}
                   style={styles.deviceItem}
                   onPress={() => handleConnectDevice(device)}
                 >
-                  <Ionicons name="bluetooth" size={20} color={tintColor} />
+                  <Ionicons name="bluetooth" size={20} color={tintColor}/>
                   <ThemedView style={styles.deviceInfo}>
                     <ThemedText style={styles.deviceName}>{device.name}</ThemedText>
                     <ThemedText style={styles.deviceId}>{device.id}</ThemedText>
@@ -464,8 +470,8 @@ export default function DynamicAssessmentScreen() {
                 <ThemedText style={styles.noDevicesText}>未找到设备</ThemedText>
               )}
             </ScrollView>
-            <TouchableOpacity 
-              style={styles.closeButton} 
+            <TouchableOpacity
+              style={styles.closeButton}
               onPress={() => setShowDeviceList(false)}
             >
               <ThemedText style={styles.closeButtonText}>关闭</ThemedText>
@@ -475,9 +481,9 @@ export default function DynamicAssessmentScreen() {
       </Modal>
 
       {/* 参数设置模态框 */}
-      <Modal 
-        visible={showConfigModal} 
-        animationType="slide" 
+      <Modal
+        visible={showConfigModal}
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setShowConfigModal(false)}
       >
@@ -488,8 +494,8 @@ export default function DynamicAssessmentScreen() {
             </ThemedText>
             <ThemedView style={styles.inputGroup}>
               <ThemedText>{assessmentState === 'trainingConfig' ? '训练时长 (秒):' : '评估时长 (秒):'}</ThemedText>
-              <TextInput 
-                style={styles.input} 
+              <TextInput
+                style={styles.input}
                 value={String(config.duration)}
                 onChangeText={(text) => setConfig(prev => ({...prev, duration: parseInt(text) || 60}))}
                 keyboardType="numeric"
@@ -497,31 +503,37 @@ export default function DynamicAssessmentScreen() {
             </ThemedView>
             <ThemedView style={styles.inputGroup}>
               <ThemedText>阻力级别 (1-10):</ThemedText>
-              <TextInput 
-                style={styles.input} 
+              <TextInput
+                style={styles.input}
                 value={String(config.resistanceLevel)}
-                onChangeText={(text) => setConfig(prev => ({...prev, resistanceLevel: Math.max(1, Math.min(10, parseInt(text) || 5))}))}
+                onChangeText={(text) => setConfig(prev => ({
+                  ...prev,
+                  resistanceLevel: Math.max(1, Math.min(10, parseInt(text) || 5))
+                }))}
                 keyboardType="numeric"
               />
             </ThemedView>
             <ThemedView style={styles.inputGroup}>
               <ThemedText>速度 (1-10):</ThemedText>
-              <TextInput 
-                style={styles.input} 
+              <TextInput
+                style={styles.input}
                 value={String(config.speed)}
-                onChangeText={(text) => setConfig(prev => ({...prev, speed: Math.max(1, Math.min(10, parseInt(text) || 5))}))}
+                onChangeText={(text) => setConfig(prev => ({
+                  ...prev,
+                  speed: Math.max(1, Math.min(10, parseInt(text) || 5))
+                }))}
                 keyboardType="numeric"
               />
             </ThemedView>
             <ThemedView style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalButton} 
+              <TouchableOpacity
+                style={styles.modalButton}
                 onPress={() => setShowConfigModal(false)}
               >
                 <ThemedText>取消</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.modalButtonPrimary]} 
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
                 onPress={handleSaveConfig}
               >
                 <ThemedText style={styles.modalButtonPrimaryText}>确定</ThemedText>
@@ -532,9 +544,9 @@ export default function DynamicAssessmentScreen() {
       </Modal>
 
       {/* 评估完成后的详细结果模态框 */}
-      <Modal 
-        visible={showResultModal} 
-        animationType="slide" 
+      <Modal
+        visible={showResultModal}
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setShowResultModal(false)}
       >
@@ -553,8 +565,8 @@ export default function DynamicAssessmentScreen() {
               <ThemedText>总距离: 5.2 km</ThemedText>
               <ThemedText>能量消耗: 320 kcal</ThemedText>
             </ThemedView>
-            <TouchableOpacity 
-              style={styles.closeButton} 
+            <TouchableOpacity
+              style={styles.closeButton}
               onPress={() => setShowResultModal(false)}
             >
               <ThemedText style={styles.closeButtonText}>关闭</ThemedText>
@@ -571,6 +583,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',

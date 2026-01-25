@@ -2,10 +2,11 @@ import { StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Modal, TextI
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import DatabaseService, { User, ExerciseRecord } from '@/services/DatabaseService';
+import { useNavigation } from "expo-router";
 
 export default function UserManagementScreen() {
   const colorScheme = useColorScheme();
@@ -23,6 +24,11 @@ export default function UserManagementScreen() {
     height: '',
     weight: ''
   });
+
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.setOptions({title: '用户管理/运动数据'});
+  }, [navigation]);
 
   // 初始化数据库和加载用户数据
   useEffect(() => {
@@ -259,8 +265,6 @@ export default function UserManagementScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">用户管理/运动数据</ThemedText>
-      
       {/* 用户列表网格 */}
       <FlatList
         data={users}
@@ -367,6 +371,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Link } from 'expo-router';
 import { requestBluetoothPermission } from "@/hooks/bluetoothPermission";
+import { Image } from "expo-image";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -23,11 +24,11 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.buttonContainer}>
-        {buttonData.map((button, index) => (
+        { buttonData.map((button, index) => (
           // @ts-ignore
           <Link key={index} href={button.href} asChild>
             <TouchableOpacity style={styles.button}>
-              <Ionicons name={button.icon as any} size={32} color={tintColor} style={styles.icon} />
+              <Ionicons name={button.icon as any} size={80} color={tintColor} style={styles.icon} />
               <ThemedText type="subtitle" style={styles.buttonText}>
                 {button.title}
               </ThemedText>
@@ -35,40 +36,58 @@ export default function HomeScreen() {
           </Link>
         ))}
       </ThemedView>
+      <ThemedView style={styles.logoContainer}>
+        {/*  LOGO */}
+        <ThemedText>LOGO</ThemedText>
+      </ThemedView>
     </ThemedView>
   );
 }
 
+// 设置动态标题
+export const options = {
+  title: '动态姿势评估',
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
   buttonContainer: {
     width: '100%',
-    maxWidth: 300,
-    gap: 20,
+    maxWidth: 600,
+    gap: 30,
+    paddingTop: 60,
   },
   button: {
     backgroundColor: '#f0f0f0',
-    padding: 20,
-    borderRadius: 10,
+    padding: 33,
+    borderRadius: 25,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+    minHeight: 200,
+    justifyContent: 'center',
   },
   icon: {
-    marginBottom: 10,
+    marginBottom: 25,
   },
   buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  logoContainer: {
+    marginTop: 100,
+  },
+  logo: {
+    width: 200,
+    height: 200,
   },
 });

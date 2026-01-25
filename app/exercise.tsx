@@ -4,23 +4,82 @@ import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 
 export default function ExerciseScreen() {
   // 状态管理
-  const [climbingDistance, setClimbingDistance] = useState(0);
-  const [heartRate, setHeartRate] = useState('连接配件');
+  const [climbingDistance, setClimbingDistance] = useState(342);
+  const [heartRate, setHeartRate] = useState(134);
   const [upperResistance, setUpperResistance] = useState(5);
   const [lowerResistance, setLowerResistance] = useState(4);
   const [isExerciseStarted, setIsExerciseStarted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [exerciseTime, setExerciseTime] = useState(60); // 1分钟
+  const [remainingTime, setRemainingTime] = useState(60);
   const [countdownVisible, setCountdownVisible] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
+  const [heartRateAlert, setHeartRateAlert] = useState(false);
+  const [isPauseModalVisible, setIsPauseModalVisible] = useState(false);
+  const [isEndModalVisible, setIsEndModalVisible] = useState(false);
+  const [isSavingData, setIsSavingData] = useState(false);
+
+  // 圆形进度条配置
+  const radius = 150;
+  const strokeWidth = 15;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (remainingTime / exerciseTime) * circumference;
 
   // 处理开始运动
   const handleStartExercise = () => {
     setCountdownVisible(true);
     setCountdown(3);
+  };
+
+  // 处理暂停/继续运动
+  const handlePauseResumeExercise = () => {
+    if (!isPaused) {
+      // 点击暂停按钮，先设置暂停状态再显示弹窗
+      setIsPaused(true);
+      setIsPauseModalVisible(true);
+    } else {
+      // 从暂停状态继续运动
+      setIsPaused(false);
+    }
+  };
+
+  // 处理继续运动（从弹窗）
+  const handleResumeFromModal = () => {
+    setIsPauseModalVisible(false);
+    setIsPaused(false);
+  };
+
+  // 处理结束运动（从弹窗）
+  const handleEndFromModal = () => {
+    setIsPauseModalVisible(false);
+    // 从暂停弹窗点击结束运动时，倒计时已经暂停，直接显示结束弹窗
+    setIsEndModalVisible(true);
+    setIsSavingData(true);
+    
+    // 模拟数据存储过程
+    setTimeout(() => {
+      setIsSavingData(false);
+      // 存储运动数据的逻辑可以在这里实现
+      console.log('运动数据已保存');
+      // 关闭弹窗并重置状态
+      setTimeout(() => {
+        setIsEndModalVisible(false);
+        handleEndExercise();
+      }, 1000);
+    }, 2000);
+  };
+
+  // 处理结束运动
+  const handleEndExercise = () => {
+    setIsExerciseStarted(false);
+    setIsPaused(false);
+    setRemainingTime(exerciseTime);
+    setHeartRateAlert(false);
   };
 
   // 倒计时效果
@@ -35,9 +94,39 @@ export default function ExerciseScreen() {
       // 倒计时结束，开始运动
       setCountdownVisible(false);
       setIsExerciseStarted(true);
-      // 这里可以添加开始运动的逻辑，比如启动计时器、连接设备等
+      setIsPaused(false);
+      setRemainingTime(exerciseTime);
     }
   }, [countdownVisible, countdown]);
+
+  // 运动计时
+  useEffect(() => {
+    if (isExerciseStarted && !isPaused && remainingTime > 0) {
+      const timer = setTimeout(() => {
+        setRemainingTime(prev => prev - 1);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    } else if (remainingTime === 0) {
+      // 运动结束
+      setIsExerciseStarted(false);
+    }
+  }, [isExerciseStarted, isPaused, remainingTime]);
+
+  // 心率监测
+  useEffect(() => {
+    if (isExerciseStarted) {
+      // 模拟心率变化
+      const heartRateTimer = setInterval(() => {
+        // 生成120-230之间的随机心率
+        const newHeartRate = Math.floor(Math.random() * 110) + 120;
+        setHeartRate(newHeartRate);
+        setHeartRateAlert(newHeartRate > 150);
+      }, 2000);
+
+      return () => clearInterval(heartRateTimer);
+    }
+  }, [isExerciseStarted]);
 
   // 处理上肢阻力增减
   const handleUpperResistanceChange = (delta: number) => {
@@ -58,19 +147,56 @@ export default function ExerciseScreen() {
   return (
     <ThemedView style={styles.container}>
 
+      {/* 心率过高警报 */}
+      {heartRateAlert && (
+        <View style={styles.heartRateAlert}>
+          <ThemedText style={styles.heartRateAlertText}>
+            心率过高
+            请停止运动
+          </ThemedText>
+        </View>
+      )}
+
       {/* 主内容区域 */}
       <View style={styles.mainContent}>
         <View>
           <ThemedText style={styles.timeText}>
-            01:00
+            {Math.floor(remainingTime / 60).toString().padStart(2, '0')}:{Math.floor(remainingTime % 60).toString().padStart(2, '0')}
           </ThemedText>
         </View>
 
         {/* 运动时长圆形显示 */}
         <View style={styles.timeCircle}>
-          <ThemedText style={styles.timeLabel}>
-            运动时长
-          </ThemedText>
+          <Svg width={radius * 2} height={radius * 2} style={styles.progressCircle}>
+            {/* 背景圆 */}
+            <Circle
+              cx={radius}
+              cy={radius}
+              r={radius - strokeWidth / 2}
+              stroke="#E8E8E8"
+              strokeWidth={strokeWidth}
+              fill="none"
+            />
+            {/* 进度圆 */}
+            <Circle
+              cx={radius}
+              cy={radius}
+              r={radius - strokeWidth / 2}
+              stroke={heartRateAlert ? "#FF0000" : "#FF7F50"}
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={circumference}
+              strokeDashoffset={isExerciseStarted ? progress : circumference}
+              strokeLinecap="round"
+              rotation={-90}
+              origin={`${radius}, ${radius}`}
+            />
+          </Svg>
+          <View style={styles.timeLabelContainer}>
+            <ThemedText style={styles.timeLabel}>
+              运动时长
+            </ThemedText>
+          </View>
         </View>
 
         {/* 攀爬距离和心率 */}
@@ -150,16 +276,54 @@ export default function ExerciseScreen() {
         </View>
       </View>
 
-      {/* 开始运动按钮 */}
+      {/* 开始运动/暂停/结束运动按钮 */}
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.startButton}
-          onPress={handleStartExercise}
-        >
-          <ThemedText style={styles.startButtonText}>
-            开始运动
-          </ThemedText>
-        </TouchableOpacity>
+        {!isExerciseStarted ? (
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={handleStartExercise}
+          >
+            <ThemedText style={styles.startButtonText}>
+              开始运动
+            </ThemedText>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.exerciseControls}>
+            <TouchableOpacity
+              style={styles.controlButton}
+              onPress={handlePauseResumeExercise}
+            >
+              <ThemedText style={styles.controlButtonText}>
+                {isPaused ? '继续运动' : '暂停'}
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.controlButton, styles.endButton]}
+                onPress={() => {
+                  // 点击结束运动按钮，立即暂停倒计时
+                  setIsPaused(true);
+                  setIsEndModalVisible(true);
+                  setIsSavingData(true);
+                  
+                  // 模拟数据存储过程
+                  setTimeout(() => {
+                    setIsSavingData(false);
+                    // 存储运动数据的逻辑可以在这里实现
+                    console.log('运动数据已保存');
+                    // 关闭弹窗并重置状态
+                    setTimeout(() => {
+                      setIsEndModalVisible(false);
+                      handleEndExercise();
+                    }, 1000);
+                  }, 2000);
+                }}
+              >
+              <ThemedText style={styles.controlButtonText}>
+                结束运动
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* 倒计时遮罩层 */}
@@ -255,6 +419,60 @@ export default function ExerciseScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 暂停运动弹窗 */}
+      <Modal
+        visible={isPauseModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsPauseModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ThemedText style={styles.modalTitle}>运动已暂停</ThemedText>
+            <View style={styles.modalButtonsContainer}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.continueButton]}
+                onPress={handleResumeFromModal}
+              >
+                <ThemedText style={styles.modalButtonText}>
+                  继续运动
+                </ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.endModalButton]}
+                onPress={handleEndFromModal}
+              >
+                <ThemedText style={styles.modalButtonText}>
+                  结束运动
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 结束运动弹窗 */}
+      <Modal
+        visible={isEndModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsEndModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ThemedText style={styles.modalTitle}>运动结束，请放松</ThemedText>
+            <ThemedText style={styles.savingDataText}>
+              正在保持运动数据...
+            </ThemedText>
+            {isSavingData && (
+              <View style={styles.loadingContainer}>
+                <Ionicons name="refresh" size={40} color="#FF7F50" style={styles.loadingIcon} />
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -264,6 +482,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     alignItems: 'center',
+  },
+  heartRateAlert: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 20,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  heartRateAlertText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  progressCircle: {
+    position: 'absolute',
+  },
+  timeLabelContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exerciseControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  controlButton: {
+    backgroundColor: '#FF7F50',
+    paddingVertical: 18,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  controlButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  endButton: {
+    backgroundColor: '#FF6B6B',
   },
   mainContent: {
     flex: 1,
@@ -557,5 +819,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'center',
     marginTop: 20,
+  },
+  // 弹窗按钮容器
+  modalButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 30,
+  },
+  // 弹窗按钮
+  modalButton: {
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '48%',
+  },
+  // 继续运动按钮
+  continueButton: {
+    backgroundColor: '#F5E4DC',
+  },
+  // 结束运动按钮
+  endModalButton: {
+    backgroundColor: '#FF6B6B',
+  },
+  // 弹窗按钮文字
+  modalButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  // 保存数据文字
+  savingDataText: {
+    fontSize: 16,
+    color: '#000',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  // 加载容器
+  loadingContainer: {
+    marginTop: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // 加载图标
+  loadingIcon: {
+    // animation: 'spin 1s linear infinite',
   },
 });

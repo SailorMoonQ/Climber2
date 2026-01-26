@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, FlatList, TextInput, ScrollView } from 'react-native';
+import { StyleSheet, TouchableOpacity, FlatList, TextInput, ScrollView, Modal } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,18 +11,21 @@ interface UserListGridProps {
   users: User[];
   onUserSelect: (user: User) => void;
   onUserEdit: (user: User) => void;
+  onUserDelete: (user: User) => void;
 }
 
 export default function UserListGrid({
                                        users,
                                        onUserSelect,
-                                       onUserEdit
+                                       onUserEdit,
+                                       onUserDelete
                                      }: UserListGridProps) {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredUsers, setFilteredUsers] = useState<User[]>(users);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
   // 搜索功能
   useEffect(() => {
@@ -109,6 +112,7 @@ export default function UserListGrid({
       <ThemedView style={styles.bottomButtons}>
         <TouchableOpacity
           style={[styles.bottomButton, styles.deleteButton]}
+          onPress={() => setIsDeleteModalVisible(true)}
         >
           <Ionicons name="trash-outline" size={24} color="#fff"/>
           <ThemedText style={styles.bottomButtonText}>删除用户</ThemedText>
@@ -132,6 +136,40 @@ export default function UserListGrid({
           <ThemedText style={styles.bottomButtonText}>情景游戏</ThemedText>
         </TouchableOpacity>
       </ThemedView>
+
+      {/* 删除确认模态框 */}
+      <Modal
+        visible={isDeleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsDeleteModalVisible(false)}
+      >
+        <ThemedView style={styles.modalOverlay}>
+          <ThemedView style={styles.modalContent}>
+            <ThemedText style={styles.modalTitle}>删除用户</ThemedText>
+            <ThemedText style={styles.modalMessage}>要删除用户吗？</ThemedText>
+            <ThemedView style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setIsDeleteModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#000"/>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.destructiveButton]}
+                onPress={() => {
+                  setIsDeleteModalVisible(false);
+                  if (selectedUser) {
+                    onUserDelete(selectedUser);
+                  }
+                }}
+              >
+                <Ionicons name="checkmark" size={24} color="#fff"/>
+              </TouchableOpacity>
+            </ThemedView>
+          </ThemedView>
+        </ThemedView>
+      </Modal>
     </ThemedView>
   );
 }

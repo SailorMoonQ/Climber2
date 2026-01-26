@@ -1,4 +1,4 @@
-import { StyleSheet, ActivityIndicator, FlatList } from 'react-native';
+import { StyleSheet, ActivityIndicator, FlatList, Alert } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,6 +78,24 @@ export default function UserManagementScreen() {
     // 这里可以直接导航到编辑页面或显示编辑弹窗
     // Alert.alert('编辑用户', `将编辑用户 ${user.name}`);
   }, []);
+
+  const handleUserDelete = useCallback(async (user: User) => {
+    try {
+      // 调用数据库服务删除用户
+      await DatabaseService.deleteUser(user.id);
+      // 重新加载用户列表
+      const updatedUsers = await DatabaseService.getAllUsers();
+      setUsers(updatedUsers);
+      // 如果删除的是当前选中的用户，清除选中状态
+      if (selectedUser && selectedUser.id === user.id) {
+        setSelectedUser(null);
+        setExerciseRecords([]);
+      }
+    } catch (error) {
+      console.error('删除用户失败:', error);
+      Alert.alert('错误', '删除用户失败，请重试');
+    }
+  }, [selectedUser]);
 
   const renderExerciseItem = useCallback(({item}: { item: ExerciseRecord }) => (
     <ThemedView style={styles.exerciseItem}>
@@ -190,6 +208,7 @@ export default function UserManagementScreen() {
         users={users}
         onUserSelect={handleUserSelect}
         onUserEdit={handleEditUser}
+        onUserDelete={handleUserDelete}
       />
 
       {/* 选中用户的运动记录 */}

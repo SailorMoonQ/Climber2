@@ -1,0 +1,133 @@
+import React, { useState } from 'react';
+import { StyleSheet, TouchableOpacity, ViewProps } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { ThemedText } from '../themed-text';
+import { ThemedView } from '../themed-view';
+
+export type ResistanceControlProps = ViewProps & {
+  title: string;
+  initialValue?: number;
+  onValueChange?: (newValue: number) => void;
+  minValue?: number;
+  maxValue?: number;
+  isLeft?: boolean;
+  isRight?: boolean;
+};
+
+export function ResistanceControl({
+                                    title,
+                                    initialValue = 0,
+                                    onValueChange,
+                                    minValue = 0,
+                                    maxValue = 10,
+                                    isLeft = false,
+                                    isRight = false,
+                                    style,
+                                    ...otherProps
+                                  }: ResistanceControlProps) {
+  // 在组件内部管理value状态
+  const [value, setValue] = useState(initialValue);
+
+  // 处理阻力值增减
+  const handleDecrease = () => {
+    const newResistance = value - 1;
+    if (newResistance >= minValue) {
+      setValue(newResistance);
+      // 如果提供了onValueChange回调，通知父组件值的变化
+      onValueChange?.(newResistance);
+    }
+  };
+
+  const handleIncrease = () => {
+    const newResistance = value + 1;
+    if (newResistance <= maxValue) {
+      setValue(newResistance);
+      // 如果提供了onValueChange回调，通知父组件值的变化
+      onValueChange?.(newResistance);
+    }
+  };
+
+  return (
+    <ThemedView
+      style={[
+        styles.resistanceCard,
+        isLeft ? styles.leftResistanceCard : undefined,
+        isRight ? styles.rightResistanceCard : undefined,
+        style,
+      ]}
+      {...otherProps}
+    >
+      <ThemedText style={styles.resistanceLabel}>
+        {title}
+      </ThemedText>
+      <ThemedView style={styles.resistanceControl}>
+        <TouchableOpacity
+          style={styles.resistanceButton}
+          onPress={handleDecrease}
+        >
+          <Ionicons name="remove" size={20} color="#FF7F50"/>
+        </TouchableOpacity>
+        <ThemedText style={styles.resistanceValue}>
+          {value}
+        </ThemedText>
+        <TouchableOpacity
+          style={styles.resistanceButton}
+          onPress={handleIncrease}
+        >
+          <Ionicons name="add" size={20} color="#FF7F50"/>
+        </TouchableOpacity>
+      </ThemedView>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  resistanceCard: {
+    backgroundColor: '#F5E4DC',
+    padding: 20,
+    width: '48%',
+    alignItems: 'center',
+  },
+  leftResistanceCard: {
+    borderTopLeftRadius: 30,
+    borderBottomLeftRadius: 15,
+    borderTopRightRadius: 15,
+    borderBottomRightRadius: 30,
+  },
+  rightResistanceCard: {
+    borderTopLeftRadius: 15,
+    borderBottomLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderBottomRightRadius: 15,
+  },
+  resistanceLabel: {
+    fontSize: 14,
+    color: '#000',
+    opacity: 0.7,
+    marginBottom: 15,
+  },
+  resistanceControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
+  resistanceButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FF7F50',
+  },
+  resistanceValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+});

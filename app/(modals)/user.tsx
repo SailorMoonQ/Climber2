@@ -31,7 +31,7 @@ export default function UserModalScreen() {
   // 编辑模式下加载用户数据
   useEffect(() => {
     if (isEditMode && userId) {
-      loadUser();
+      void loadUser();
     }
   }, [isEditMode, userId]);
 
@@ -123,7 +123,7 @@ export default function UserModalScreen() {
   };
 
   const handleGenderSelect = (gender: string) => {
-    setFormData({ ...formData, gender });
+    setFormData({...formData, gender});
   };
 
   return (
@@ -134,7 +134,7 @@ export default function UserModalScreen() {
         </ThemedText>
         <Link href="/user-management" asChild>
           <Pressable style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={tintColor} />
+            <Ionicons name="close" size={24} color={tintColor}/>
           </Pressable>
         </Link>
       </ThemedView>
@@ -146,7 +146,7 @@ export default function UserModalScreen() {
           <TextInput
             style={styles.input}
             value={formData.name}
-            onChangeText={(text) => setFormData({ ...formData, name: text })}
+            onChangeText={(text) => setFormData({...formData, name: text})}
             placeholder="请输入姓名"
             placeholderTextColor="#999"
           />
@@ -159,14 +159,14 @@ export default function UserModalScreen() {
             <Pressable
               style={[
                 styles.genderButton,
-                formData.gender === '男' && { backgroundColor: tintColor },
+                formData.gender === '男' && {backgroundColor: tintColor},
               ]}
               onPress={() => handleGenderSelect('男')}
             >
               <ThemedText
                 style={[
                   styles.genderButtonText,
-                  formData.gender === '男' && { color: 'white' },
+                  formData.gender === '男' && {color: 'white'},
                 ]}
               >
                 男
@@ -175,14 +175,14 @@ export default function UserModalScreen() {
             <Pressable
               style={[
                 styles.genderButton,
-                formData.gender === '女' && { backgroundColor: tintColor },
+                formData.gender === '女' && {backgroundColor: tintColor},
               ]}
               onPress={() => handleGenderSelect('女')}
             >
               <ThemedText
                 style={[
                   styles.genderButtonText,
-                  formData.gender === '女' && { color: 'white' },
+                  formData.gender === '女' && {color: 'white'},
                 ]}
               >
                 女
@@ -197,7 +197,7 @@ export default function UserModalScreen() {
           <TextInput
             style={styles.input}
             value={formData.age}
-            onChangeText={(text) => setFormData({ ...formData, age: text })}
+            onChangeText={(text) => setFormData({...formData, age: text})}
             placeholder="请输入年龄"
             placeholderTextColor="#999"
             keyboardType="numeric"
@@ -210,7 +210,7 @@ export default function UserModalScreen() {
           <TextInput
             style={styles.input}
             value={formData.height}
-            onChangeText={(text) => setFormData({ ...formData, height: text })}
+            onChangeText={(text) => setFormData({...formData, height: text})}
             placeholder="请输入身高"
             placeholderTextColor="#999"
             keyboardType="numeric"
@@ -223,7 +223,7 @@ export default function UserModalScreen() {
           <TextInput
             style={styles.input}
             value={formData.weight}
-            onChangeText={(text) => setFormData({ ...formData, weight: text })}
+            onChangeText={(text) => setFormData({...formData, weight: text})}
             placeholder="请输入体重"
             placeholderTextColor="#999"
             keyboardType="numeric"

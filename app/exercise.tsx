@@ -2,7 +2,8 @@ import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Modal } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
-import { router, useNavigation } from 'expo-router';
+import { ResistanceControl } from '@/components/ui/resistance-control';
+import { useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -133,21 +134,7 @@ export default function ExerciseScreen() {
     }
   }, [isExerciseStarted]);
 
-  // 处理上肢阻力增减
-  const handleUpperResistanceChange = (delta: number) => {
-    const newResistance = upperResistance + delta;
-    if (newResistance >= 0 && newResistance <= 10) {
-      setUpperResistance(newResistance);
-    }
-  };
 
-  // 处理下肢阻力增减
-  const handleLowerResistanceChange = (delta: number) => {
-    const newResistance = lowerResistance + delta;
-    if (newResistance >= 0 && newResistance <= 10) {
-      setLowerResistance(newResistance);
-    }
-  };
 
   return (
     <ThemedView style={styles.container}>
@@ -233,51 +220,18 @@ export default function ExerciseScreen() {
 
         {/* 阻力控制 */}
         <View style={styles.resistanceRow}>
-          <View style={[styles.resistanceCard, styles.leftResistanceCard]}>
-            <ThemedText style={styles.resistanceLabel}>
-              上肢阻力
-            </ThemedText>
-            <View style={styles.resistanceControl}>
-              <TouchableOpacity
-                style={styles.resistanceButton}
-                onPress={() => handleUpperResistanceChange(-1)}
-              >
-                <Ionicons name="remove" size={20} color="#FF7F50"/>
-              </TouchableOpacity>
-              <ThemedText style={styles.resistanceValue}>
-                {upperResistance}
-              </ThemedText>
-              <TouchableOpacity
-                style={styles.resistanceButton}
-                onPress={() => handleUpperResistanceChange(1)}
-              >
-                <Ionicons name="add" size={20} color="#FF7F50"/>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={[styles.resistanceCard, styles.rightResistanceCard]}>
-            <ThemedText style={styles.resistanceLabel}>
-              下肢阻力
-            </ThemedText>
-            <View style={styles.resistanceControl}>
-              <TouchableOpacity
-                style={styles.resistanceButton}
-                onPress={() => handleLowerResistanceChange(-1)}
-              >
-                <Ionicons name="remove" size={20} color="#FF7F50"/>
-              </TouchableOpacity>
-              <ThemedText style={styles.resistanceValue}>
-                {lowerResistance}
-              </ThemedText>
-              <TouchableOpacity
-                style={styles.resistanceButton}
-                onPress={() => handleLowerResistanceChange(1)}
-              >
-                <Ionicons name="add" size={20} color="#FF7F50"/>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <ResistanceControl
+            title="上肢阻力"
+            initialValue={upperResistance}
+            onValueChange={setUpperResistance}
+            isLeft
+          />
+          <ResistanceControl
+            title="下肢阻力"
+            initialValue={lowerResistance}
+            onValueChange={setLowerResistance}
+            isRight
+          />
         </View>
       </View>
 

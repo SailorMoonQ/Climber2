@@ -165,6 +165,7 @@ const useBluetooth = () => {
 
     try {
       const encodedData = encodeResistanceData(resistanceData);
+      console.log('Sending encoded data:', Buffer.from(encodedData, 'utf-8').toString('base64'));
       await connectedDevice.writeCharacteristicWithResponseForService(
         BLUETOOTH_SERVICES.MAIN_SERVICE,
         BLUETOOTH_CHARACTERISTICS.WRITE_CHARACTERISTIC,

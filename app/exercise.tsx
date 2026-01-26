@@ -6,6 +6,7 @@ import { ResistanceControl } from '@/components/ui/resistance-control';
 import { useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+import useBluetooth from '@/hooks/useBluetooth';
 
 export default function ExerciseScreen() {
   // 状态管理
@@ -24,6 +25,9 @@ export default function ExerciseScreen() {
   const [isPauseModalVisible, setIsPauseModalVisible] = useState(false);
   const [isEndModalVisible, setIsEndModalVisible] = useState(false);
   const [isSavingData, setIsSavingData] = useState(false);
+
+  // 蓝牙功能
+  const { sendResistanceData } = useBluetooth();
 
   // 圆形进度条配置
   const radius = 150;
@@ -133,6 +137,21 @@ export default function ExerciseScreen() {
       return () => clearInterval(heartRateTimer);
     }
   }, [isExerciseStarted]);
+
+  // 当阻力值变化时发送蓝牙信号
+  useEffect(() => {
+    // 发送阻力数据
+    const sendResistance = async () => {
+      await sendResistanceData({
+        upperLeft: upperResistance,
+        upperRight: upperResistance,
+        lowerLeft: lowerResistance,
+        lowerRight: lowerResistance
+      });
+    };
+
+    sendResistance();
+  }, [upperResistance, lowerResistance, sendResistanceData]);
 
 
 

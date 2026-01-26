@@ -128,6 +128,11 @@ export default function UserListGrid({
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.bottomButton, styles.assessmentButton]}
+          onPress={() => {
+            if (selectedUser) {
+              router.push(`/exercise?id=${selectedUser.id}`);
+            }
+          }}
         >
           <Ionicons name="clipboard-outline" size={24} color="#fff"/>
           <ThemedText style={styles.bottomButtonText}>评估</ThemedText>

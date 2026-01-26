@@ -13,7 +13,7 @@ export default function HomeScreen() {
 
   const buttonData = [
     { title: '动态评估', icon: 'speedometer-outline', href: '/dynamic-assessment' },
-    { title: '自由训练', icon: 'fitness-outline', href: '/exercise' },
+    { title: '自由训练', icon: 'fitness-outline', href: '/free-training' },
     { title: '情景游戏', icon: 'game-controller-outline', href: '/scenario-game' },
     { title: '用户管理/运动数据', icon: 'people-outline', href: '/user-management' },
   ];

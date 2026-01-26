@@ -3,13 +3,20 @@ import { StyleSheet, View, TouchableOpacity, Modal } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { ResistanceControl } from '@/components/ui/resistance-control';
-import { useNavigation } from 'expo-router';
+import { useNavigation, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import useBluetooth from '@/hooks/useBluetooth';
+import DatabaseService from '@/services/database-service';
+import { User } from '@/interface/user.interface';
 
 export default function ExerciseScreen() {
+  // 获取路由参数
+  const params = useLocalSearchParams();
+  const userId = params.id as string;
+  
   // 状态管理
+  const [user, setUser] = useState<User | null>(null);
   const [climbingDistance, setClimbingDistance] = useState(342);
   const [heartRate, setHeartRate] = useState(134);
   const [upperResistance, setUpperResistance] = useState(5);
@@ -87,10 +94,21 @@ export default function ExerciseScreen() {
     setHeartRateAlert(false);
   };
 
+  // 根据userId获取用户信息
+  useEffect(() => {
+    const loadUser = async () => {
+      if (userId) {
+        const userInfo = await DatabaseService.getUserById(userId);
+        setUser(userInfo);
+      }
+    };
+    loadUser();
+  }, [userId]);
+
   const navigation = useNavigation();
   useLayoutEffect(() => {
-    navigation.setOptions({title: `动态姿势评估 ${'李丽'}`});
-  }, [navigation]);
+    navigation.setOptions({title: `动态姿势评估 ${user?.name || userId}`});
+  }, [navigation, userId, user]);
 
   // 倒计时效果
   useEffect(() => {

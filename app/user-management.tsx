@@ -1,12 +1,15 @@
-import { StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Modal, TextInput, Pressable, Alert } from 'react-native';
+import { StyleSheet, ActivityIndicator, FlatList } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import DatabaseService, { User, ExerciseRecord } from '@/services/DatabaseService';
+import DatabaseService from '@/services/database-service';
 import { useNavigation } from "expo-router";
+import UserListGrid from '@/components/user-list-grid';
+import { User } from "@/interface/user.interface";
+import { ExerciseRecord } from '@/interface/exercise-record.interface';
 
 export default function UserManagementScreen() {
   const colorScheme = useColorScheme();
@@ -15,15 +18,6 @@ export default function UserManagementScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    gender: '',
-    age: '',
-    height: '',
-    weight: ''
-  });
 
   const navigation = useNavigation();
   useLayoutEffect(() => {
@@ -44,7 +38,7 @@ export default function UserManagementScreen() {
       }
     };
 
-    loadData();
+    void loadData();
   }, []);
 
   // 加载选中用户的运动记录
@@ -61,7 +55,7 @@ export default function UserManagementScreen() {
       }
     };
 
-    loadExerciseRecords();
+    void loadExerciseRecords();
   }, [selectedUser]);
 
   const handleUserSelect = useCallback((user: User) => {
@@ -76,80 +70,16 @@ export default function UserManagementScreen() {
         setExerciseRecords([]);
       }
     };
-    loadExerciseRecords();
+    void loadExerciseRecords();
   }, []);
 
+  // 编辑用户功能仍保留在主屏幕，因为它可能涉及更复杂的交互
   const handleEditUser = useCallback((user: User) => {
-    setEditingUser(user);
-    setEditForm({
-      name: user.name,
-      gender: user.gender,
-      age: user.age.toString(),
-      height: user.height.toString(),
-      weight: user.weight.toString()
-    });
-    setShowEditModal(true);
+    // 这里可以直接导航到编辑页面或显示编辑弹窗
+    // Alert.alert('编辑用户', `将编辑用户 ${user.name}`);
   }, []);
 
-  const handleSaveUser = useCallback(async () => {
-    if (!editingUser || !editForm.name || !editForm.gender || !editForm.age) {
-      Alert.alert('错误', '请填写完整的用户信息');
-      return;
-    }
-
-    try {
-      const updatedUser: User = {
-        ...editingUser,
-        name: editForm.name,
-        gender: editForm.gender,
-        age: parseInt(editForm.age),
-        height: parseInt(editForm.height),
-        weight: parseInt(editForm.weight)
-      };
-
-      await DatabaseService.updateUser(updatedUser);
-      // 更新用户列表
-      const updatedUsers = users.map(user => 
-        user.id === updatedUser.id ? updatedUser : user
-      );
-      setUsers(updatedUsers);
-      // 如果当前选中的用户是被编辑的用户，也更新选中用户
-      if (selectedUser?.id === updatedUser.id) {
-        setSelectedUser(updatedUser);
-      }
-      setShowEditModal(false);
-      Alert.alert('成功', '用户信息已更新');
-    } catch (error) {
-      console.error('Failed to update user:', error);
-      Alert.alert('错误', '更新用户信息失败');
-    }
-  }, [editingUser, editForm, users, selectedUser]);
-
-  const renderUserItem = useCallback(({ item }: { item: User }) => (
-    <TouchableOpacity 
-      style={styles.userItem}
-      onPress={() => handleUserSelect(item)}
-    >
-      <ThemedView style={styles.userAvatar}>
-        <Ionicons name="person" size={40} color={tintColor} />
-      </ThemedView>
-      <ThemedText style={styles.userName}>{item.name}</ThemedText>
-      <ThemedText style={styles.userDetails}>
-        {item.gender} | {item.age}岁
-      </ThemedText>
-      <TouchableOpacity 
-        style={styles.editButton} 
-        onPress={(e) => {
-          e.stopPropagation(); // 防止触发父元素的点击事件
-          handleEditUser(item);
-        }}
-      >
-        <Ionicons name="create-outline" size={16} color={tintColor} />
-      </TouchableOpacity>
-    </TouchableOpacity>
-  ), [handleUserSelect, handleEditUser, tintColor]);
-
-  const renderExerciseItem = useCallback(({ item }: { item: ExerciseRecord }) => (
+  const renderExerciseItem = useCallback(({item}: { item: ExerciseRecord }) => (
     <ThemedView style={styles.exerciseItem}>
       <ThemedView style={styles.exerciseHeader}>
         <ThemedText style={styles.exerciseType}>{item.type}</ThemedText>
@@ -157,19 +87,19 @@ export default function UserManagementScreen() {
       </ThemedView>
       <ThemedView style={styles.exerciseDetails}>
         <ThemedView style={styles.exerciseDetail}>
-          <Ionicons name="time-outline" size={16} color={tintColor} />
+          <Ionicons name="time-outline" size={16} color={tintColor}/>
           <ThemedText>{item.duration}分钟</ThemedText>
         </ThemedView>
         <ThemedView style={styles.exerciseDetail}>
-          <Ionicons name="walk-outline" size={16} color={tintColor} />
+          <Ionicons name="walk-outline" size={16} color={tintColor}/>
           <ThemedText>{item.distance}公里</ThemedText>
         </ThemedView>
         <ThemedView style={styles.exerciseDetail}>
-          <Ionicons name="flame-outline" size={16} color={tintColor} />
+          <Ionicons name="flame-outline" size={16} color={tintColor}/>
           <ThemedText>{item.calories}卡路里</ThemedText>
         </ThemedView>
         <ThemedView style={styles.exerciseDetail}>
-          <Ionicons name="speedometer-outline" size={16} color={tintColor} />
+          <Ionicons name="speedometer-outline" size={16} color={tintColor}/>
           <ThemedText>{item.averageSpeed}km/h</ThemedText>
         </ThemedView>
       </ThemedView>
@@ -180,7 +110,7 @@ export default function UserManagementScreen() {
     if (!selectedUser) {
       return (
         <ThemedView style={styles.noSelection}>
-          <Ionicons name="person-outline" size={40} color={tintColor} />
+          <Ionicons name="person-outline" size={40} color={tintColor}/>
           <ThemedText>请选择一个用户查看运动记录</ThemedText>
         </ThemedView>
       );
@@ -188,44 +118,34 @@ export default function UserManagementScreen() {
 
     return (
       <ThemedView style={styles.selectedUserSection}>
-        {/* 用户信息 */}
-        <ThemedView style={styles.userProfile}>
-          <ThemedView style={styles.profileAvatar}>
-            <Ionicons name="person" size={60} color={tintColor} />
-          </ThemedView>
-          <ThemedText style={styles.profileName}>{selectedUser.name}</ThemedText>
-          <ThemedText style={styles.profileDetails}>
-            {selectedUser.gender} | {selectedUser.age}岁 | {selectedUser.height}cm | {selectedUser.weight}kg
-          </ThemedText>
-        </ThemedView>
 
         {/* 用户统计数据 */}
         <ThemedView style={styles.statsSection}>
           <ThemedText type="subtitle">运动统计</ThemedText>
           <ThemedView style={styles.statsGrid}>
             <ThemedView style={styles.statsCard}>
-              <Ionicons name="time-outline" size={30} color={tintColor} />
+              <Ionicons name="time-outline" size={30} color={tintColor}/>
               <ThemedText style={styles.statsValue}>
                 {exerciseRecords.reduce((sum, item) => sum + item.duration, 0)}
               </ThemedText>
               <ThemedText style={styles.statsLabel}>总时长(分钟)</ThemedText>
             </ThemedView>
             <ThemedView style={styles.statsCard}>
-              <Ionicons name="walk-outline" size={30} color={tintColor} />
+              <Ionicons name="walk-outline" size={30} color={tintColor}/>
               <ThemedText style={styles.statsValue}>
                 {exerciseRecords.reduce((sum, item) => sum + item.distance, 0).toFixed(1)}
               </ThemedText>
               <ThemedText style={styles.statsLabel}>总距离(公里)</ThemedText>
             </ThemedView>
             <ThemedView style={styles.statsCard}>
-              <Ionicons name="flame-outline" size={30} color={tintColor} />
+              <Ionicons name="flame-outline" size={30} color={tintColor}/>
               <ThemedText style={styles.statsValue}>
                 {exerciseRecords.reduce((sum, item) => sum + item.calories, 0)}
               </ThemedText>
               <ThemedText style={styles.statsLabel}>总卡路里</ThemedText>
             </ThemedView>
             <ThemedView style={styles.statsCard}>
-              <Ionicons name="calendar-outline" size={30} color={tintColor} />
+              <Ionicons name="calendar-outline" size={30} color={tintColor}/>
               <ThemedText style={styles.statsValue}>{exerciseRecords.length}</ThemedText>
               <ThemedText style={styles.statsLabel}>运动次数</ThemedText>
             </ThemedView>
@@ -245,7 +165,7 @@ export default function UserManagementScreen() {
             />
           ) : (
             <ThemedView style={styles.emptyHistory}>
-              <Ionicons name="document-text-outline" size={40} color={tintColor} />
+              <Ionicons name="document-text-outline" size={40} color={tintColor}/>
               <ThemedText>暂无运动记录</ThemedText>
             </ThemedView>
           )}
@@ -257,7 +177,7 @@ export default function UserManagementScreen() {
   if (loading) {
     return (
       <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={tintColor} />
+        <ActivityIndicator size="large" color={tintColor}/>
         <ThemedText style={styles.loadingText}>加载中...</ThemedText>
       </ThemedView>
     );
@@ -266,102 +186,14 @@ export default function UserManagementScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* 用户列表网格 */}
-      <FlatList
-        data={users}
-        renderItem={renderUserItem}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.userGrid}
-        numColumns={4}
+      <UserListGrid
+        users={users}
+        onUserSelect={handleUserSelect}
+        onUserEdit={handleEditUser}
       />
 
       {/* 选中用户的运动记录 */}
       {renderSelectedUserSection()}
-
-      {/* 编辑用户弹窗 */}
-      <Modal
-        visible={showEditModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowEditModal(false)}
-      >
-        <Pressable 
-          style={styles.modalOverlay} 
-          onPress={() => setShowEditModal(false)}
-        >
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>编辑用户信息</ThemedText>
-            
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>姓名</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={editForm.name}
-                onChangeText={(text) => setEditForm({...editForm, name: text})}
-                placeholder="输入姓名"
-              />
-            </ThemedView>
-
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>性别</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={editForm.gender}
-                onChangeText={(text) => setEditForm({...editForm, gender: text})}
-                placeholder="输入性别"
-              />
-            </ThemedView>
-
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>年龄</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={editForm.age}
-                onChangeText={(text) => setEditForm({...editForm, age: text})}
-                placeholder="输入年龄"
-                keyboardType="numeric"
-              />
-            </ThemedView>
-
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>身高(cm)</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={editForm.height}
-                onChangeText={(text) => setEditForm({...editForm, height: text})}
-                placeholder="输入身高"
-                keyboardType="numeric"
-              />
-            </ThemedView>
-
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>体重(kg)</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={editForm.weight}
-                onChangeText={(text) => setEditForm({...editForm, weight: text})}
-                placeholder="输入体重"
-                keyboardType="numeric"
-              />
-            </ThemedView>
-
-            <ThemedView style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowEditModal(false)}
-              >
-                <ThemedText style={styles.cancelButtonText}>取消</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={handleSaveUser}
-              >
-                <ThemedText style={styles.saveButtonText}>保存</ThemedText>
-              </TouchableOpacity>
-            </ThemedView>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </ThemedView>
   );
 }
@@ -371,6 +203,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+
 
   loadingContainer: {
     flex: 1,

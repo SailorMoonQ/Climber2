@@ -1,28 +1,6 @@
 import * as SQLite from 'expo-sqlite';
-
-// 定义用户和运动记录的类型
-export interface User {
-  id: string;
-  name: string;
-  age: number;
-  gender: string;
-  height: number;
-  weight: number;
-  avatar?: string;
-}
-
-export interface ExerciseRecord {
-  id: string;
-  userId: string;
-  date: string;
-  type: string;
-  duration: number;
-  distance: number;
-  calories: number;
-  averageSpeed: number;
-  maxSpeed: number;
-  heartRate: { avg: number; max: number };
-}
+import { User } from "@/interface/user.interface";
+import { ExerciseRecord } from "@/interface/exercise-record.interface";
 
 // 创建数据库连接
 const db = SQLite.openDatabaseSync('climber.db');
@@ -167,16 +145,17 @@ class DatabaseService {
     }
   }
 
-  static async addUser(user: User): Promise<boolean> {
+  static async addUser(userData: Omit<User, 'id'>): Promise<User> {
     try {
+      const id = Date.now().toString(); // 使用时间戳生成唯一ID
       await db.runAsync(
         'INSERT INTO users (id, name, age, gender, height, weight, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [user.id, user.name, user.age, user.gender, user.height, user.weight, user.avatar]
+        [id, userData.name, userData.age, userData.gender, userData.height, userData.weight, userData.avatar]
       );
-      return true;
+      return { id, ...userData };
     } catch (error) {
       console.error('Failed to add user:', error);
-      return false;
+      throw error;
     }
   }
 

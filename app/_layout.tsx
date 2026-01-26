@@ -12,7 +12,7 @@ export default function RootLayout() {
       <OrganizationProvider>
         <Stack>
           <Stack.Screen name="(tabs)" options={{headerShown: false}}/>
-          <Stack.Screen name="modal" options={{presentation: 'modal', title: 'Modal'}}/>
+          <Stack.Screen name="(modals)" options={{presentation: 'modal', title: 'Modal'}}/>
         </Stack>
         <StatusBar style="auto"/>
       </OrganizationProvider>

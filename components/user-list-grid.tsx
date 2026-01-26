@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { User } from '@/interface/user.interface';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { useNavigation, useRouter } from "expo-router";
+
 
 interface UserListGridProps {
   users: User[];
@@ -20,6 +22,8 @@ export default function UserListGrid({
                                        onUserEdit,
                                        onUserDelete
                                      }: UserListGridProps) {
+  const navigation = useNavigation();
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,6 +79,10 @@ export default function UserListGrid({
     </TouchableOpacity>
   );
 
+  const addNewUser = () => {
+    router.push('/user?mode=add')
+  };
+
   return (
     <ThemedView style={styles.container}>
       {/* 顶部搜索条和新增按钮 */}
@@ -91,6 +99,7 @@ export default function UserListGrid({
         </ThemedView>
         <TouchableOpacity
           style={styles.addButton}
+          onPress={() => addNewUser()}
         >
           <ThemedText style={styles.addButtonText}>新增</ThemedText>
         </TouchableOpacity>

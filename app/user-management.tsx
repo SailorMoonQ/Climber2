@@ -1,4 +1,4 @@
-import { StyleSheet, ActivityIndicator, FlatList, Alert } from 'react-native';
+import { StyleSheet, ActivityIndicator, FlatList, Alert, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,7 +6,8 @@ import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import DatabaseService from '@/services/database-service';
-import { useNavigation } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import UserListGrid from '@/components/user-list-grid';
 import { User } from "@/interface/user.interface";
 import { ExerciseRecord } from '@/interface/exercise-record.interface';
@@ -18,6 +19,7 @@ export default function UserManagementScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const navigation = useNavigation();
   useLayoutEffect(() => {
@@ -75,9 +77,10 @@ export default function UserManagementScreen() {
 
   // 编辑用户功能仍保留在主屏幕，因为它可能涉及更复杂的交互
   const handleEditUser = useCallback((user: User) => {
-    // 这里可以直接导航到编辑页面或显示编辑弹窗
-    // Alert.alert('编辑用户', `将编辑用户 ${user.name}`);
-  }, []);
+    // 导航到编辑用户的modal页面
+    // @ts-ignore
+    return router.push('/user?id=' + user.id + '&mode=edit');
+  }, [router]);
 
   const handleUserDelete = useCallback(async (user: User) => {
     try {
@@ -373,58 +376,5 @@ const styles = StyleSheet.create({
   emptyHistory: {
     alignItems: 'center',
     padding: 40,
-  },
-  // 弹窗样式
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    width: '80%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 15,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    padding: 10,
-    marginTop: 5,
-    fontSize: 16,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  modalButton: {
-    padding: 10,
-    borderRadius: 5,
-    width: '48%',
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f0f0f0',
-  },
-  cancelButtonText: {
-    color: '#333',
-  },
-  saveButton: {
-    backgroundColor: '#f0f0f0',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
+  }
 });

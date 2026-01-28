@@ -7,6 +7,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import useBluetooth from '../hooks/useBluetooth';
 import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '../constants/bluetoothConfig';
+import { TargetSettingModal, TargetSettingModalProps } from '@/components/ui/target-setting-modal';
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
@@ -20,6 +21,14 @@ export default function FreeTrainingScreen() {
   const [params, setParams] = useState({
     resistanceLevel: 5, // 阻力级别
     speed: 5, // 速度
+  });
+  
+  // 目标设置
+  const [showTargetModal, setShowTargetModal] = useState(false);
+  const [trainingTargets, setTrainingTargets] = useState<TargetSettingModalProps['initialTargets']>({
+    duration: 300, // 默认5分钟
+    distance: 100, // 默认100米
+    calories: 500, // 默认500千卡
   });
 
   const { 
@@ -203,6 +212,37 @@ export default function FreeTrainingScreen() {
         )}
       </ThemedView>
 
+      {/* 目标设置区域 */}
+      <ThemedView style={styles.targetSection}>
+        <ThemedText type="subtitle">训练目标</ThemedText>
+        <ThemedView style={styles.targetGrid}>
+          <TouchableOpacity 
+            style={styles.targetCard} 
+            onPress={() => setShowTargetModal(true)}
+          >
+            <Ionicons name="timer-outline" size={30} color={tintColor} />
+            <ThemedText style={styles.targetValue}>{Math.floor(trainingTargets.duration / 60)}:00</ThemedText>
+            <ThemedText style={styles.targetLabel}>运动时长</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.targetCard} 
+            onPress={() => setShowTargetModal(true)}
+          >
+            <Ionicons name="walk-outline" size={30} color={tintColor} />
+            <ThemedText style={styles.targetValue}>{trainingTargets.distance}</ThemedText>
+            <ThemedText style={styles.targetLabel}>攀爬距离(m)</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.targetCard} 
+            onPress={() => setShowTargetModal(true)}
+          >
+            <Ionicons name="flame-outline" size={30} color={tintColor} />
+            <ThemedText style={styles.targetValue}>{trainingTargets.calories}</ThemedText>
+            <ThemedText style={styles.targetLabel}>能量消耗(kcal)</ThemedText>
+          </TouchableOpacity>
+        </ThemedView>
+      </ThemedView>
+
       {/* 实时数据展示 */}
       {trainingData && (
         <ThemedView style={styles.dataSection}>
@@ -290,6 +330,20 @@ export default function FreeTrainingScreen() {
           </ThemedView>
         </ThemedView>
       </Modal>
+
+      {/* 目标设置弹窗 */}
+      <TargetSettingModal
+        visible={showTargetModal}
+        initialTargets={trainingTargets}
+        onClose={(targets) => {
+          setShowTargetModal(false);
+          if (targets) {
+            setTrainingTargets(targets);
+            // 这里可以处理目标设置后的逻辑，比如发送到设备
+            console.log('设置的目标:', targets);
+          }
+        }}
+      />
 
       {/* 参数控制面板 */}
       <Modal 
@@ -401,6 +455,37 @@ const styles = StyleSheet.create({
   controlSection: {
     alignItems: 'center',
     marginBottom: 20,
+  },
+  targetSection: {
+    backgroundColor: '#f0f0f0',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  targetGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  targetCard: {
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    width: '31%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  targetValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginVertical: 5,
+  },
+  targetLabel: {
+    fontSize: 12,
+    opacity: 0.7,
   },
   controlButton: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleProp, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,19 +11,21 @@ export interface DistanceProps {
   distance: number; // 当前距离（m）
   targetDistance?: number; // 目标距离（m）
   onTargetPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 // 距离组件
 export const Distance: React.FC<DistanceProps> = ({ 
   distance, 
   targetDistance,
-  onTargetPress 
+  onTargetPress,
+  style,
 }) => {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   
   return (
-    <ThemedView style={styles.dataItem}>
+    <ThemedView style={[styles.dataItem, style]}>
       <ThemedText style={styles.dataLabel}>攀爬距离(m)</ThemedText>
       <ThemedText style={styles.mainValue}>{Math.floor(distance)}</ThemedText>
       {targetDistance && (

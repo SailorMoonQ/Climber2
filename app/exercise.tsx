@@ -3,6 +3,8 @@ import { StyleSheet, View, TouchableOpacity, Modal } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { ResistanceControl } from '@/components/ui/resistance-control';
+import { Distance } from '@/components/training-data/distance'; // 导入Distance组件
+import { HeartRate } from '@/components/training-data/heart-rate'; // 导入HeartRate组件
 import { useNavigation, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
@@ -106,7 +108,7 @@ export default function ExerciseScreen() {
         setUser(userInfo);
       }
     };
-    loadUser();
+    void loadUser();
   }, [userId]);
 
   const navigation = useNavigation();
@@ -176,10 +178,6 @@ export default function ExerciseScreen() {
   }, [upperResistance, lowerResistance, sendResistanceData]);
 
 
-  const handlePauseOnContinue = () => {
-
-  };
-
   return (
     <ThemedView style={styles.container}>
 
@@ -235,48 +233,41 @@ export default function ExerciseScreen() {
           </View>
         </View>
 
-        {/* 攀爬距离和心率 */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, styles.leftStatCard]}>
-            <ThemedText style={styles.statLabel}>
-              攀爬距离(m)
-            </ThemedText>
-            <ThemedText style={styles.statValue}>
-              {climbingDistance.toString().padStart(2, '0')}
-            </ThemedText>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.statCard, styles.rightStatCard]}
-            onPress={() => setIsAccessoryModalVisible(true)}
-          >
-            <ThemedText style={styles.statLabel}>
-              心率(bpm)
-            </ThemedText>
-            <ThemedText style={styles.statValue}>
-              {heartRate}
-            </ThemedText>
-            <ThemedText style={styles.heartRateMax}>
-              MAX 150
-            </ThemedText>
-          </TouchableOpacity>
-        </View>
-
-        {/* 阻力控制 */}
-        <View style={styles.resistanceRow}>
-          <ResistanceControl
-            title="上肢阻力"
-            initialValue={upperResistance}
-            onValueChange={setUpperResistance}
-            isLeft
+        {/* 心率 */}
+        <TouchableOpacity
+          style={styles.heartRate}
+          onPress={() => setIsAccessoryModalVisible(true)}
+        >
+          <HeartRate
+            heartRate={heartRate}
+            maxHeartRate={150}
+            targetHeartRateRange={[100, 130]}
           />
-          <ResistanceControl
-            title="下肢阻力"
-            initialValue={lowerResistance}
-            onValueChange={setLowerResistance}
-            isRight
-          />
-        </View>
+        </TouchableOpacity>
+
+        {/* Distance组件 */}
+        <Distance
+          style={styles.distance}
+          distance={climbingDistance}
+          targetDistance={500}
+          onTargetPress={() => setIsAccessoryModalVisible(true)}
+        />
+
+        {/* 阻力控制 - 左下方偏下位置 */}
+        <ResistanceControl
+          style={styles.resistanceControlLeft}
+          title="上肢阻力"
+          initialValue={upperResistance}
+          onValueChange={setUpperResistance}
+          isLeft
+        />
+        <ResistanceControl
+          style={styles.resistanceControlRight}
+          title="下肢阻力"
+          initialValue={lowerResistance}
+          onValueChange={setLowerResistance}
+          isRight
+        />
       </View>
 
       {/* 开始运动/暂停/结束运动按钮 */}
@@ -413,6 +404,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   heartRateAlert: {
@@ -462,13 +454,15 @@ const styles = StyleSheet.create({
   mainContent: {
     flex: 1,
     alignItems: 'center',
+    marginTop: 100,
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 20,
+    width: '100%',
   },
   timeCircle: {
-    width: 400,
-    height: 400,
-    borderRadius: 200,
+    width: 450,
+    height: 450,
+    borderRadius: 225,
     backgroundColor: '#E8E8E8',
     justifyContent: 'center',
     alignItems: 'center',
@@ -487,29 +481,29 @@ const styles = StyleSheet.create({
     color: '#000',
     opacity: 0.7,
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 30,
+  heartRate: {
+    position: 'absolute',
+    bottom: 380,
+    right: 0,
+    width: '20%',
   },
-  statCard: {
-    backgroundColor: '#F5E4DC',
-    padding: 15,
-    width: '48%',
-    alignItems: 'center',
+  distance: {
+    position: 'absolute',
+    bottom: 380,
+    left: 0,
+    width: '20%',
   },
-  leftStatCard: {
-    borderTopLeftRadius: 30,
-    borderBottomLeftRadius: 30,
-    borderTopRightRadius: 15,
-    borderBottomRightRadius: 15,
+  resistanceControlLeft: {
+    position: 'absolute',
+    bottom: 200,
+    left: 0,
+    width: '30%',
   },
-  rightStatCard: {
-    borderTopLeftRadius: 15,
-    borderBottomLeftRadius: 15,
-    borderTopRightRadius: 30,
-    borderBottomRightRadius: 30,
+  resistanceControlRight: {
+    position: 'absolute',
+    bottom: 200,
+    right: 0,
+    width: '30%',
   },
   statLabel: {
     fontSize: 14,
@@ -528,11 +522,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     marginTop: 5,
   },
-  resistanceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
   resistanceCard: {
     backgroundColor: '#F5E4DC',
     padding: 20,
@@ -541,8 +530,8 @@ const styles = StyleSheet.create({
   },
   leftResistanceCard: {
     borderTopLeftRadius: 30,
-    borderBottomLeftRadius: 15,
-    borderTopRightRadius: 15,
+    borderBottomLeftRadius: 30,
+    borderTopRightRadius: 30,
     borderBottomRightRadius: 30,
   },
   rightResistanceCard: {

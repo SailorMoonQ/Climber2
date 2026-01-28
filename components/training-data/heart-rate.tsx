@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
 
@@ -8,16 +8,18 @@ export interface HeartRateProps {
   heartRate: number; // 当前心率（bpm）
   maxHeartRate?: number; // 最大心率（bpm）
   targetHeartRateRange?: [number, number]; // 目标心率范围（bpm）
+  style?: StyleProp<ViewStyle>;
 }
 
 // 心率组件
 export const HeartRate: React.FC<HeartRateProps> = ({ 
   heartRate, 
   maxHeartRate,
-  targetHeartRateRange 
+  targetHeartRateRange,
+  style,
 }) => {
   return (
-    <ThemedView style={styles.dataItem}>
+    <ThemedView style={[styles.dataItem, style]}>
       <ThemedText style={styles.dataLabel}>心率(bpm)</ThemedText>
       <ThemedText style={styles.mainValue}>{heartRate}</ThemedText>
       {targetHeartRateRange && (
@@ -36,7 +38,8 @@ const styles = StyleSheet.create({
   dataItem: {
     backgroundColor: '#F8E7E1', // 浅粉色背景，匹配设计图
     padding: 15,
-    borderRadius: 15,
+    borderBottomLeftRadius: 15,
+    borderTopLeftRadius: 15,
     marginBottom: 10,
     alignItems: 'center',
   },

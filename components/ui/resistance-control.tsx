@@ -84,21 +84,21 @@ export function ResistanceControl({
 const styles = StyleSheet.create({
   resistanceCard: {
     backgroundColor: '#F5E4DC',
-    padding: 20,
+    padding: 40,
     width: '48%',
     alignItems: 'center',
   },
   leftResistanceCard: {
-    borderTopLeftRadius: 30,
-    borderBottomLeftRadius: 15,
-    borderTopRightRadius: 15,
-    borderBottomRightRadius: 30,
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderTopRightRadius: 70,
+    borderBottomRightRadius: 70,
   },
   rightResistanceCard: {
-    borderTopLeftRadius: 15,
-    borderBottomLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderBottomRightRadius: 15,
+    borderTopLeftRadius: 70,
+    borderBottomLeftRadius: 70,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
   },
   resistanceLabel: {
     fontSize: 14,

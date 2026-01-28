@@ -6,7 +6,7 @@ import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import DatabaseService from '@/services/database-service';
-import { useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { Link } from "expo-router";
 import UserListGrid from '@/components/user-list-grid';
 import { User } from "@/interface/user.interface";
@@ -26,22 +26,32 @@ export default function UserManagementScreen() {
     navigation.setOptions({title: '用户管理/运动数据'});
   }, [navigation]);
 
+  // 加载用户数据的函数
+  const loadUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      await DatabaseService.init();
+      const userList = await DatabaseService.getAllUsers();
+      setUsers(userList);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // 初始化数据库和加载用户数据
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        await DatabaseService.init();
-        const userList = await DatabaseService.getAllUsers();
-        setUsers(userList);
-      } catch (error) {
-        console.error('Failed to load data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    void loadUsers();
+  }, [loadUsers]);
 
-    void loadData();
-  }, []);
+  // 监听页面焦点变化，当从新增/编辑用户页面返回时刷新数据
+  useFocusEffect(
+    useCallback(() => {
+      // 当页面获得焦点时刷新用户数据
+      void loadUsers();
+    }, [loadUsers])
+  );
 
   // 加载选中用户的运动记录
   useEffect(() => {

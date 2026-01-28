@@ -9,12 +9,16 @@ import Svg, { Circle } from 'react-native-svg';
 import useBluetooth from '@/hooks/useBluetooth';
 import DatabaseService from '@/services/database-service';
 import { User } from '@/interface/user.interface';
+import { CountdownOverlay } from "@/components/ui/CountdownOverlay";
+import { ExerciseControls } from "@/components/ui/ExerciseControls";
+import { PauseModal } from "@/components/ui/PauseModal";
+import { EndModal } from "@/components/ui/EndModal";
 
 export default function ExerciseScreen() {
   // 获取路由参数
   const params = useLocalSearchParams();
   const userId = params.id as string;
-  
+
   // 状态管理
   const [user, setUser] = useState<User | null>(null);
   const [climbingDistance, setClimbingDistance] = useState(342);
@@ -34,7 +38,7 @@ export default function ExerciseScreen() {
   const [isSavingData, setIsSavingData] = useState(false);
 
   // 蓝牙功能
-  const { sendResistanceData } = useBluetooth();
+  const {sendResistanceData} = useBluetooth();
 
   // 圆形进度条配置
   const radius = 150;
@@ -72,7 +76,7 @@ export default function ExerciseScreen() {
     // 从暂停弹窗点击结束运动时，倒计时已经暂停，直接显示结束弹窗
     setIsEndModalVisible(true);
     setIsSavingData(true);
-    
+
     // 模拟数据存储过程
     setTimeout(() => {
       setIsSavingData(false);
@@ -172,6 +176,9 @@ export default function ExerciseScreen() {
   }, [upperResistance, lowerResistance, sendResistanceData]);
 
 
+  const handlePauseOnContinue = () => {
+
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -273,64 +280,32 @@ export default function ExerciseScreen() {
       </View>
 
       {/* 开始运动/暂停/结束运动按钮 */}
-      <View style={styles.footer}>
-        {!isExerciseStarted ? (
-          <TouchableOpacity
-            style={styles.startButton}
-            onPress={handleStartExercise}
-          >
-            <ThemedText style={styles.startButtonText}>
-              开始运动
-            </ThemedText>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.exerciseControls}>
-            <TouchableOpacity
-              style={styles.controlButton}
-              onPress={handlePauseResumeExercise}
-            >
-              <ThemedText style={styles.controlButtonText}>
-                {isPaused ? '继续运动' : '暂停'}
-              </ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={[styles.controlButton, styles.endButton]}
-                onPress={() => {
-                  // 点击结束运动按钮，立即暂停倒计时
-                  setIsPaused(true);
-                  setIsEndModalVisible(true);
-                  setIsSavingData(true);
-                  
-                  // 模拟数据存储过程
-                  setTimeout(() => {
-                    setIsSavingData(false);
-                    // 存储运动数据的逻辑可以在这里实现
-                    console.log('运动数据已保存');
-                    // 关闭弹窗并重置状态
-                    setTimeout(() => {
-                      setIsEndModalVisible(false);
-                      handleEndExercise();
-                    }, 1000);
-                  }, 2000);
-                }}
-              >
-              <ThemedText style={styles.controlButtonText}>
-                结束运动
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+      <ExerciseControls
+        isExerciseStarted={isExerciseStarted}
+        isPaused={isPaused}
+        onStart={handleStartExercise}
+        onPauseResume={handlePauseResumeExercise}
+        onEnd={() => {
+          setIsEndModalVisible(true);
+          setIsSavingData(true);
+
+          // 模拟数据存储过程
+          setTimeout(() => {
+            setIsSavingData(false);
+            // 存储运动数据的逻辑可以在这里实现
+            console.log('运动数据已保存');
+            // 关闭弹窗并重置状态
+            setTimeout(() => {
+              setIsEndModalVisible(false);
+              handleEndExercise();
+            }, 1000);
+          }, 2000);
+        }}
+      ></ExerciseControls>
 
       {/* 倒计时遮罩层 */}
       {countdownVisible && (
-        <View style={styles.countdownOverlay}>
-          <View style={styles.countdownContainer}>
-            <ThemedText style={styles.countdownText}>
-              {countdown}
-            </ThemedText>
-          </View>
-        </View>
+        <CountdownOverlay countdown={countdown} visible={countdownVisible}></CountdownOverlay>
       )}
 
       {/* 连接配件弹窗 */}
@@ -417,58 +392,18 @@ export default function ExerciseScreen() {
       </Modal>
 
       {/* 暂停运动弹窗 */}
-      <Modal
+      <PauseModal
         visible={isPauseModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsPauseModalVisible(false)}
+        onContinue={handleResumeFromModal}
+        onEnd={handleEndFromModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ThemedText style={styles.modalTitle}>运动已暂停</ThemedText>
-            <View style={styles.modalButtonsContainer}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.continueButton]}
-                onPress={handleResumeFromModal}
-              >
-                <ThemedText style={styles.modalButtonText}>
-                  继续运动
-                </ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.endModalButton]}
-                onPress={handleEndFromModal}
-              >
-                <ThemedText style={styles.modalButtonText}>
-                  结束运动
-                </ThemedText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      </PauseModal>
 
       {/* 结束运动弹窗 */}
-      <Modal
+      <EndModal
         visible={isEndModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsEndModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ThemedText style={styles.modalTitle}>运动结束，请放松</ThemedText>
-            <ThemedText style={styles.savingDataText}>
-              正在保持运动数据...
-            </ThemedText>
-            {isSavingData && (
-              <View style={styles.loadingContainer}>
-                <Ionicons name="refresh" size={40} color="#FF7F50" style={styles.loadingIcon} />
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+        isSavingData={isSavingData}
+      ></EndModal>
     </ThemedView>
   );
 }
@@ -645,45 +580,7 @@ const styles = StyleSheet.create({
     minWidth: 30,
     textAlign: 'center',
   },
-  footer: {
-    width: '100%',
-    padding: 20,
-    marginBottom: 30,
-  },
-  startButton: {
-    backgroundColor: '#FF7F50',
-    paddingVertical: 18,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  startButtonText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  countdownOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  countdownContainer: {
-    marginTop: -200,
-    width: 1000,
-    height: 1500,
-    padding: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  countdownText: {
-    padding: 200,
-    fontSize: 360,
-    fontWeight: 'bold',
-    color: '#FF7F50',
-  },
-  // 弹窗样式
+  // 弹窗样式（仅保留连接配件弹窗使用的样式）
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -816,51 +713,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'center',
     marginTop: 20,
-  },
-  // 弹窗按钮容器
-  modalButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 30,
-  },
-  // 弹窗按钮
-  modalButton: {
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '48%',
-  },
-  // 继续运动按钮
-  continueButton: {
-    backgroundColor: '#F5E4DC',
-  },
-  // 结束运动按钮
-  endModalButton: {
-    backgroundColor: '#FF6B6B',
-  },
-  // 弹窗按钮文字
-  modalButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  // 保存数据文字
-  savingDataText: {
-    fontSize: 16,
-    color: '#000',
-    marginTop: 20,
-    textAlign: 'center',
-  },
-  // 加载容器
-  loadingContainer: {
-    marginTop: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // 加载图标
-  loadingIcon: {
-    // animation: 'spin 1s linear infinite',
-  },
+  }
 });

@@ -1,13 +1,21 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import useBluetooth from '../hooks/useBluetooth';
-import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '../constants/bluetoothConfig';
+import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '@/constants/bluetoothConfig';
 import { TargetSettingModal, TargetSettingModalProps } from '@/components/ui/target-setting-modal';
+import { ExerciseDuration } from '@/components/training-data/exercise-duration';
+import { Speed } from '@/components/training-data/speed';
+import { Calories } from '@/components/training-data/calories';
+import { Posture } from '@/components/training-data/posture';
+import { Force } from '@/components/training-data/force';
+import { Distance } from '@/components/training-data/distance';
+import { HeartRate } from '@/components/training-data/heart-rate';
+import { ResistanceControl } from '@/components/ui/resistance-control';
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
@@ -15,7 +23,6 @@ export default function FreeTrainingScreen() {
   const [trainingStarted, setTrainingStarted] = useState(false);
   const [showDeviceList, setShowDeviceList] = useState(false);
   const [showControlPanel, setShowControlPanel] = useState(false);
-  const [trainingData, setTrainingData] = useState<any>(null);
   
   // 训练参数
   const [params, setParams] = useState({
@@ -30,19 +37,67 @@ export default function FreeTrainingScreen() {
     distance: 100, // 默认100米
     calories: 500, // 默认500千卡
   });
+  
+  // 实时训练数据
+  const [currentDuration, setCurrentDuration] = useState(0); // 运动时长（秒）
+  const [currentSpeed, setCurrentSpeed] = useState(0); // 速度（m/s）
+  const [averageSpeed, setAverageSpeed] = useState(0); // 平均速度（m/s）
+  const [currentDistance, setCurrentDistance] = useState(0); // 距离（m）
+  const [currentCalories, setCurrentCalories] = useState(0); // 能量消耗（kcal）
+  const [currentHeartRate, setCurrentHeartRate] = useState(0); // 心率（bpm）
+  
+  // 力量数据
+  const [leftHandForce, setLeftHandForce] = useState(0); // 左手力（N）
+  const [rightHandForce, setRightHandForce] = useState(0); // 右手力（N）
+  const [leftLegForce, setLeftLegForce] = useState(0); // 左腿力（N）
+  const [rightLegForce, setRightLegForce] = useState(0); // 右腿力（N）
+  
+  // 阻力数据
+  const [upperResistance, setUpperResistance] = useState(5); // 上肢阻力
+  const [lowerResistance, setLowerResistance] = useState(5); // 下肢阻力
 
-  const { 
-    manager, 
-    isEnabled, 
-    connectionStatus, 
-    connectedDevice, 
-    devices, 
-    scanning, 
-    startScan, 
-    connectToDevice, 
-    disconnectFromDevice, 
-    sendData 
+  const {
+    manager,
+    isEnabled,
+    connectionStatus,
+    connectedDevice,
+    devices,
+    scanning,
+    startScan,
+    connectToDevice,
+    disconnectFromDevice,
+    sendData,
+    parsedData
   } = useBluetooth();
+  
+  // 计时器
+  useEffect(() => {
+    let interval: any;
+    if (trainingStarted) {
+      interval = setInterval(() => {
+        setCurrentDuration(prev => prev + 1);
+        // 模拟数据变化
+        setCurrentSpeed(prev => Math.random() * 5 + 2);
+        setCurrentDistance(prev => prev + Math.random() * 0.5);
+        setCurrentCalories(prev => prev + Math.random() * 0.5);
+        setCurrentHeartRate(prev => Math.floor(Math.random() * 30) + 90);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [trainingStarted]);
+  
+  // 处理蓝牙数据
+  useEffect(() => {
+    if (parsedData) {
+      // 更新力量数据
+      setLeftHandForce(parsedData.upperLeftForce || 0);
+      setRightHandForce(parsedData.upperRightForce || 0);
+      setLeftLegForce(parsedData.lowerLeftForce || 0);
+      setRightLegForce(parsedData.lowerRightForce || 0);
+      
+      // 可以根据需要更新其他数据
+    }
+  }, [parsedData]);
 
   const handleStartTraining = useCallback(async () => {
     if (!manager) {
@@ -58,7 +113,11 @@ export default function FreeTrainingScreen() {
     const success = await sendData({
       type: BLUETOOTH_COMMANDS.START_TRAINING,
       mode: 'free',
-      params: params,
+      params: {
+        ...params,
+        upperResistance,
+        lowerResistance
+      },
     });
 
     if (success) {
@@ -66,7 +125,7 @@ export default function FreeTrainingScreen() {
     } else {
       Alert.alert('发送失败', '无法发送开始训练命令');
     }
-  }, [manager, connectionStatus, sendData, params]);
+  }, [manager, connectionStatus, sendData, params, upperResistance, lowerResistance]);
 
   const handleStopTraining = useCallback(async () => {
     if (!manager) {
@@ -105,7 +164,11 @@ export default function FreeTrainingScreen() {
     // 发送参数更新命令
     const success = await sendData({
       type: BLUETOOTH_COMMANDS.SEND_CONFIG,
-      params: params,
+      params: {
+        ...params,
+        upperResistance,
+        lowerResistance
+      },
     });
 
     if (success) {
@@ -114,7 +177,7 @@ export default function FreeTrainingScreen() {
     } else {
       Alert.alert('发送失败', '无法发送参数更新命令');
     }
-  }, [manager, connectionStatus, sendData, params]);
+  }, [manager, connectionStatus, sendData, params, upperResistance, lowerResistance]);
 
   const handleConnectDevice = useCallback(async (device: any) => {
     if (!manager) {
@@ -190,7 +253,7 @@ export default function FreeTrainingScreen() {
           </TouchableOpacity>
         ) : (
           <ThemedView style={styles.trainingControls}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.controlButton, styles.pauseButton]} 
               onPress={() => {}}
             >
@@ -212,74 +275,93 @@ export default function FreeTrainingScreen() {
         )}
       </ThemedView>
 
-      {/* 目标设置区域 */}
-      <ThemedView style={styles.targetSection}>
-        <ThemedText type="subtitle">训练目标</ThemedText>
-        <ThemedView style={styles.targetGrid}>
-          <TouchableOpacity 
-            style={styles.targetCard} 
-            onPress={() => setShowTargetModal(true)}
-          >
-            <Ionicons name="timer-outline" size={30} color={tintColor} />
-            <ThemedText style={styles.targetValue}>{Math.floor(trainingTargets.duration / 60)}:00</ThemedText>
-            <ThemedText style={styles.targetLabel}>运动时长</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.targetCard} 
-            onPress={() => setShowTargetModal(true)}
-          >
-            <Ionicons name="walk-outline" size={30} color={tintColor} />
-            <ThemedText style={styles.targetValue}>{trainingTargets.distance}</ThemedText>
-            <ThemedText style={styles.targetLabel}>攀爬距离(m)</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.targetCard} 
-            onPress={() => setShowTargetModal(true)}
-          >
-            <Ionicons name="flame-outline" size={30} color={tintColor} />
-            <ThemedText style={styles.targetValue}>{trainingTargets.calories}</ThemedText>
-            <ThemedText style={styles.targetLabel}>能量消耗(kcal)</ThemedText>
-          </TouchableOpacity>
-        </ThemedView>
-      </ThemedView>
-
       {/* 实时数据展示 */}
-      {trainingData && (
-        <ThemedView style={styles.dataSection}>
-          <ThemedText type="subtitle">实时数据</ThemedText>
-          <ThemedView style={styles.dataGrid}>
-            <ThemedView style={styles.dataCard}>
-              <Ionicons name="speedometer-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.dataValue}>{trainingData.speed || 0}</ThemedText>
-              <ThemedText style={styles.dataLabel}>速度</ThemedText>
+      <ThemedView style={styles.dataSection}>
+        
+        {/* 两列布局 */}
+        <ThemedView style={styles.twoColumnLayout}>
+          {/* 左侧列 */}
+          <ThemedView style={styles.leftColumn}>
+            {/* 运动时长 */}
+            <ExerciseDuration 
+              duration={currentDuration} 
+              targetDuration={trainingTargets.duration}
+              onTargetPress={() => setShowTargetModal(true)}
+            />
+            
+            {/* 能量消耗 */}
+            <Calories 
+              calories={currentCalories} 
+              targetCalories={trainingTargets.calories}
+              onTargetPress={() => setShowTargetModal(true)}
+            />
+          </ThemedView>
+          
+          {/* 中间列 - 力量数据 */}
+          <ThemedView style={styles.middleColumn}>
+            <ThemedView style={styles.forceRow}>
+              <Force value={leftHandForce} label="左手力" />
             </ThemedView>
-            <ThemedView style={styles.dataCard}>
-              <Ionicons name="fitness-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.dataValue}>{trainingData.resistance || 0}</ThemedText>
-              <ThemedText style={styles.dataLabel}>阻力</ThemedText>
-            </ThemedView>
-            <ThemedView style={styles.dataCard}>
-              <Ionicons name="heart-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.dataValue}>{trainingData.heartRate || 0}</ThemedText>
-              <ThemedText style={styles.dataLabel}>心率</ThemedText>
-            </ThemedView>
-            <ThemedView style={styles.dataCard}>
-              <Ionicons name="battery-full-outline" size={30} color={tintColor} />
-              <ThemedText style={styles.dataValue}>{trainingData.power || 0}</ThemedText>
-              <ThemedText style={styles.dataLabel}>功率</ThemedText>
+            <ThemedView style={styles.forceRow}>
+              <Force value={leftLegForce} label="左腿力" />
             </ThemedView>
           </ThemedView>
           
-          {/* 运动曲线 */}
-          <ThemedView style={styles.chartContainer}>
-            <ThemedText style={styles.chartTitle}>运动曲线</ThemedText>
-            <ThemedView style={styles.chartPlaceholder}>
-              <Ionicons name="analytics-outline" size={40} color={tintColor} />
-              <ThemedText>图表占位符</ThemedText>
+          <ThemedView style={styles.middleColumn}>
+            <ThemedView style={styles.forceRow}>
+              <Force value={rightHandForce} label="右手力" />
+            </ThemedView>
+            <ThemedView style={styles.forceRow}>
+              <Force value={rightLegForce} label="右腿力" />
             </ThemedView>
           </ThemedView>
+          
+          {/* 右侧列 */}
+          <ThemedView style={styles.rightColumn}>
+            {/* 速度 */}
+            <Speed speed={currentSpeed} averageSpeed={averageSpeed} />
+            
+            {/* 心率 */}
+            <HeartRate 
+              heartRate={currentHeartRate} 
+              maxHeartRate={150}
+              targetHeartRateRange={[100, 130]}
+            />
+          </ThemedView>
+          
+          {/* 最右侧列 - 攀爬距离 */}
+          <ThemedView style={styles.rightmostColumn}>
+            <Distance 
+              distance={currentDistance} 
+              targetDistance={trainingTargets.distance}
+              onTargetPress={() => setShowTargetModal(true)}
+            />
+          </ThemedView>
         </ThemedView>
-      )}
+        
+
+        
+        {/* 体姿态 */}
+        <Posture />
+        
+        {/* 阻力控制 */}
+        <ThemedView style={styles.resistanceSection}>
+          <ThemedView style={styles.twoColumnLayout}>
+            <ResistanceControl 
+              title="上肢阻力" 
+              initialValue={upperResistance} 
+              onValueChange={setUpperResistance} 
+              isLeft 
+            />
+            <ResistanceControl 
+              title="下肢阻力" 
+              initialValue={lowerResistance} 
+              onValueChange={setLowerResistance} 
+              isRight 
+            />
+          </ThemedView>
+        </ThemedView>
+      </ThemedView>
 
       {/* 设备列表模态框 */}
       <Modal 
@@ -496,8 +578,13 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   startButton: {
-    backgroundColor: '#4CAF50',
-    minWidth: 200,
+    backgroundColor: '#FF6B35', // 橙色，匹配设计图
+    minWidth: 250,
+    height: 60,
+    justifyContent: 'center',
+    borderRadius: 30,
+    alignSelf: 'center',
+    marginTop: 20,
   },
   pauseButton: {
     backgroundColor: '#FFC107',
@@ -508,9 +595,9 @@ const styles = StyleSheet.create({
   },
   controlButtonText: {
     color: 'white',
-    marginLeft: 10,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   trainingControls: {
     flexDirection: 'row',
@@ -571,6 +658,72 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     borderRadius: 5,
   },
+  doubleItemContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  resistanceSection: {
+    marginTop: 20,
+  },
+  resistanceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8E7E1', // 浅粉色背景，匹配设计图
+    padding: 15,
+    borderRadius: 15,
+    marginBottom: 10,
+  },
+  resistanceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  resistanceControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resistanceButton: {
+    backgroundColor: '#FF6B35', // 橙色按钮，匹配设计图
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 10,
+  },
+  resistanceValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FF6B35', // 橙色文字，匹配设计图
+    marginHorizontal: 10,
+  },
+  twoColumnLayout: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  leftColumn: {
+    width: '20%',
+  },
+  middleColumn: {
+    width: '20%',
+    alignItems: 'center',
+  },
+  rightColumn: {
+    width: '20%',
+  },
+  rightmostColumn: {
+    width: '20%',
+  },
+  noDevicesText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 14,
+    opacity: 0.7,
+  },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -617,11 +770,6 @@ const styles = StyleSheet.create({
   },
   deviceId: {
     fontSize: 12,
-    opacity: 0.7,
-  },
-  noDevicesText: {
-    textAlign: 'center',
-    padding: 20,
     opacity: 0.7,
   },
   closeButton: {

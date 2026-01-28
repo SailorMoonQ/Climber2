@@ -9,10 +9,10 @@ import Svg, { Circle } from 'react-native-svg';
 import useBluetooth from '@/hooks/useBluetooth';
 import DatabaseService from '@/services/database-service';
 import { User } from '@/interface/user.interface';
-import { CountdownOverlay } from "@/components/ui/CountdownOverlay";
-import { ExerciseControls } from "@/components/ui/ExerciseControls";
-import { PauseModal } from "@/components/ui/PauseModal";
-import { EndModal } from "@/components/ui/EndModal";
+import { CountdownOverlay } from "@/components/ui/countdown-overlay";
+import { StartStopControls } from "@/components/ui/start-stop-controls";
+import { PauseModal } from "@/components/ui/pause-modal";
+import { EndModal } from "@/components/ui/end-modal";
 
 export default function ExerciseScreen() {
   // 获取路由参数
@@ -280,7 +280,7 @@ export default function ExerciseScreen() {
       </View>
 
       {/* 开始运动/暂停/结束运动按钮 */}
-      <ExerciseControls
+      <StartStopControls
         isExerciseStarted={isExerciseStarted}
         isPaused={isPaused}
         onStart={handleStartExercise}
@@ -301,7 +301,7 @@ export default function ExerciseScreen() {
             }, 1000);
           }, 2000);
         }}
-      ></ExerciseControls>
+      ></StartStopControls>
 
       {/* 倒计时遮罩层 */}
       {countdownVisible && (

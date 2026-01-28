@@ -5,7 +5,7 @@ import {
   BLUETOOTH_CHARACTERISTICS,
   BluetoothConnectionStatus,
   BLUETOOTH_COMMANDS
-} from '../constants/bluetoothConfig';
+} from '@/constants/bluetoothConfig';
 
 // 定义阻力数据结构
 export interface ResistanceData {
@@ -254,18 +254,23 @@ const useBluetooth = () => {
     };
   };
 
+  // 存储解析后的数据
+  const [parsedData, setParsedData] = useState<NotificationData | null>(null);
+
+  // 总行程参数（后续根据实际机械结构调整）
+  const totalUpperStroke = 100; // 上肢总行程 cm
+  const totalLowerStroke = 100; // 下肢总行程 cm
+
   const handleReceivedData = (data: NotificationData | null) => {
     // 处理接收到的数据的逻辑
     if (data) {
-      console.log('Received notification data:', {
-        upperPosition: data.upperPosition,
-        lowerPosition: data.lowerPosition,
-        upperForce: data.upperForce,
-        lowerForce: data.lowerForce
-      });
-      // 可以在这里进一步处理数据，如计算左右侧位置和力
-      // const dataWithLeftRight = calculateLeftRightPositions(totalUpperStroke, totalLowerStroke, data);
-      // const completeData = calculateLeftRightForces(dataWithLeftRight);
+      // 计算左右侧位置
+      const dataWithLeftRightPositions = calculateLeftRightPositions(totalUpperStroke, totalLowerStroke, data);
+      // 计算左右侧力
+      const completeData = calculateLeftRightForces(dataWithLeftRightPositions);
+      
+      console.log('Received complete data:', completeData);
+      setParsedData(completeData);
     }
   };
 
@@ -342,7 +347,8 @@ const useBluetooth = () => {
     sendResistanceData,
     sendData,
     calculateLeftRightPositions,
-    calculateLeftRightForces
+    calculateLeftRightForces,
+    parsedData
   };
 };
 

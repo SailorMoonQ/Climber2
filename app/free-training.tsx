@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,21 +6,23 @@ import { useState, useCallback, useEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import useBluetooth from '../hooks/useBluetooth';
-import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '@/constants/bluetoothConfig';
+import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '../constants/bluetoothConfig';
 import { TargetSettingModal, TargetSettingModalProps } from '@/components/ui/target-setting-modal';
-import { ExerciseDuration } from '@/components/training-data/exercise-duration';
-import { Speed } from '@/components/training-data/speed';
-import { Calories } from '@/components/training-data/calories';
-import { Posture } from '@/components/training-data/posture';
-import { Force } from '@/components/training-data/force';
-import { Distance } from '@/components/training-data/distance';
-import { HeartRate } from '@/components/training-data/heart-rate';
-import { ResistanceControl } from '@/components/ui/resistance-control';
+import { StartStopControls } from '@/components/ui/start-stop-controls';
+import { Force } from "@/components/training-data/force";
+import { Calories } from "@/components/training-data/calories";
+import { ExerciseDuration } from "@/components/training-data/exercise-duration";
+import { Speed } from "@/components/training-data/speed";
+import { HeartRate } from "@/components/training-data/heart-rate";
+import { Distance } from "@/components/training-data/distance";
+import { Posture } from "@/components/training-data/posture";
+import { ResistanceControl } from "@/components/ui/resistance-control";
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   const [trainingStarted, setTrainingStarted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [showDeviceList, setShowDeviceList] = useState(false);
   const [showControlPanel, setShowControlPanel] = useState(false);
   
@@ -29,6 +31,10 @@ export default function FreeTrainingScreen() {
     resistanceLevel: 5, // 阻力级别
     speed: 5, // 速度
   });
+  
+  // 阻力设置
+  const [upperResistance, setUpperResistance] = useState(5);
+  const [lowerResistance, setLowerResistance] = useState(5);
   
   // 目标设置
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -51,10 +57,6 @@ export default function FreeTrainingScreen() {
   const [rightHandForce, setRightHandForce] = useState(0); // 右手力（N）
   const [leftLegForce, setLeftLegForce] = useState(0); // 左腿力（N）
   const [rightLegForce, setRightLegForce] = useState(0); // 右腿力（N）
-  
-  // 阻力数据
-  const [upperResistance, setUpperResistance] = useState(5); // 上肢阻力
-  const [lowerResistance, setLowerResistance] = useState(5); // 下肢阻力
 
   const {
     manager,
@@ -73,7 +75,7 @@ export default function FreeTrainingScreen() {
   // 计时器
   useEffect(() => {
     let interval: any;
-    if (trainingStarted) {
+    if (trainingStarted && !isPaused) {
       interval = setInterval(() => {
         setCurrentDuration(prev => prev + 1);
         // 模拟数据变化
@@ -84,7 +86,7 @@ export default function FreeTrainingScreen() {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [trainingStarted]);
+  }, [trainingStarted, isPaused]);
   
   // 处理蓝牙数据
   useEffect(() => {
@@ -116,7 +118,8 @@ export default function FreeTrainingScreen() {
       params: {
         ...params,
         upperResistance,
-        lowerResistance
+        lowerResistance,
+        speed: params.speed
       },
     });
 
@@ -125,17 +128,38 @@ export default function FreeTrainingScreen() {
     } else {
       Alert.alert('发送失败', '无法发送开始训练命令');
     }
-  }, [manager, connectionStatus, sendData, params, upperResistance, lowerResistance]);
+  }, [manager, connectionStatus, sendData, params]);
+
+  const handlePauseResumeTraining = useCallback(async () => {
+    if (!manager) {
+      Alert.alert('蓝牙未初始化', '请稍候重试');
+      return;
+    }
+    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
+      Alert.alert('设备未连接', '请先连接设备');
+      return;
+    }
+
+    if (isPaused) {
+      // 恢复训练
+      setIsPaused(false);
+    } else {
+      // 暂停训练
+      setIsPaused(true);
+    }
+  }, [manager, connectionStatus, isPaused]);
 
   const handleStopTraining = useCallback(async () => {
     if (!manager) {
       Alert.alert('蓝牙未初始化', '请稍候重试');
       setTrainingStarted(false);
+      setIsPaused(false);
       return;
     }
     if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
       Alert.alert('设备未连接', '设备已断开连接');
       setTrainingStarted(false);
+      setIsPaused(false);
       return;
     }
 
@@ -146,10 +170,11 @@ export default function FreeTrainingScreen() {
 
     if (success) {
       setTrainingStarted(false);
+      setIsPaused(false);
     } else {
       Alert.alert('发送失败', '无法发送停止训练命令');
     }
-  }, [manager, connectionStatus, sendData]);
+  }, [manager, connectionStatus, sendData, isPaused]);
 
   const handleUpdateParams = useCallback(async () => {
     if (!manager) {
@@ -165,9 +190,7 @@ export default function FreeTrainingScreen() {
     const success = await sendData({
       type: BLUETOOTH_COMMANDS.SEND_CONFIG,
       params: {
-        ...params,
-        upperResistance,
-        lowerResistance
+        ...params
       },
     });
 
@@ -177,7 +200,7 @@ export default function FreeTrainingScreen() {
     } else {
       Alert.alert('发送失败', '无法发送参数更新命令');
     }
-  }, [manager, connectionStatus, sendData, params, upperResistance, lowerResistance]);
+  }, [manager, connectionStatus, sendData, params]);
 
   const handleConnectDevice = useCallback(async (device: any) => {
     if (!manager) {
@@ -240,40 +263,6 @@ export default function FreeTrainingScreen() {
     <ThemedView style={styles.container}>
       {/* 蓝牙连接状态 */}
       {renderConnectionStatus()}
-
-      {/* 训练控制 */}
-      <ThemedView style={styles.controlSection}>
-        {!trainingStarted ? (
-          <TouchableOpacity 
-            style={[styles.controlButton, styles.startButton]} 
-            onPress={handleStartTraining}
-          >
-            <Ionicons name="play" size={24} color="white" />
-            <ThemedText style={styles.controlButtonText}>开始训练</ThemedText>
-          </TouchableOpacity>
-        ) : (
-          <ThemedView style={styles.trainingControls}>
-            <TouchableOpacity
-              style={[styles.controlButton, styles.pauseButton]} 
-              onPress={() => {}}
-            >
-              <Ionicons name="pause" size={24} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.controlButton, styles.stopButton]} 
-              onPress={handleStopTraining}
-            >
-              <Ionicons name="stop" size={24} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.paramButton} 
-              onPress={() => setShowControlPanel(true)}
-            >
-              <Ionicons name="settings-outline" size={24} color={tintColor} />
-            </TouchableOpacity>
-          </ThemedView>
-        )}
-      </ThemedView>
 
       {/* 实时数据展示 */}
       <ThemedView style={styles.dataSection}>
@@ -357,11 +346,20 @@ export default function FreeTrainingScreen() {
               title="下肢阻力" 
               initialValue={lowerResistance} 
               onValueChange={setLowerResistance} 
-              isRight 
+              isRight
             />
           </ThemedView>
         </ThemedView>
       </ThemedView>
+
+      {/* 训练控制 */}
+      <StartStopControls
+        isExerciseStarted={trainingStarted}
+        isPaused={isPaused}
+        onStart={handleStartTraining}
+        onPauseResume={handlePauseResumeTraining}
+        onEnd={handleStopTraining}
+      />
 
       {/* 设备列表模态框 */}
       <Modal 

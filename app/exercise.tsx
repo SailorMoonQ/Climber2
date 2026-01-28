@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Modal } from 'react-native';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { ResistanceControl } from '@/components/ui/resistance-control';
 import { Distance } from '@/components/training-data/distance'; // 导入Distance组件
 import { HeartRate } from '@/components/training-data/heart-rate'; // 导入HeartRate组件
-import { useNavigation, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import useBluetooth from '@/hooks/useBluetooth';
@@ -253,7 +253,7 @@ export default function ExerciseScreen() {
           onTargetPress={() => setIsAccessoryModalVisible(true)}
         />
 
-        {/* 阻力控制 - 左下方偏下位置 */}
+        {/* 阻力控制 */}
         <ResistanceControl
           style={styles.resistanceControlLeft}
           title="上肢阻力"

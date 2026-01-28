@@ -1,22 +1,21 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
+import { Alert, Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import useBluetooth from '../hooks/useBluetooth';
-import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '../constants/bluetoothConfig';
+import { BLUETOOTH_COMMANDS, BluetoothConnectionStatus } from '@/constants/bluetoothConfig';
 import { TargetSettingModal, TargetSettingModalProps } from '@/components/ui/target-setting-modal';
 import { StartStopControls } from '@/components/ui/start-stop-controls';
-import { Force } from "@/components/training-data/force";
 import { Calories } from "@/components/training-data/calories";
 import { ExerciseDuration } from "@/components/training-data/exercise-duration";
 import { Speed } from "@/components/training-data/speed";
-import { HeartRate } from "@/components/training-data/heart-rate";
-import { Distance } from "@/components/training-data/distance";
 import { Posture } from "@/components/training-data/posture";
 import { ResistanceControl } from "@/components/ui/resistance-control";
+import { DeviceListModal } from '@/components/ui/device-list-modal';
+import { HeartRate } from "@/components/training-data/heart-rate";
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
@@ -259,98 +258,67 @@ export default function FreeTrainingScreen() {
     }
   };
 
+  const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
+  const [heartRate, setHeartRate] = useState(134);
+
   return (
     <ThemedView style={styles.container}>
       {/* 蓝牙连接状态 */}
       {renderConnectionStatus()}
 
-      {/* 实时数据展示 */}
-      <ThemedView style={styles.dataSection}>
-        
-        {/* 两列布局 */}
-        <ThemedView style={styles.twoColumnLayout}>
-          {/* 左侧列 */}
-          <ThemedView style={styles.leftColumn}>
-            {/* 运动时长 */}
-            <ExerciseDuration 
-              duration={currentDuration} 
-              targetDuration={trainingTargets.duration}
-              onTargetPress={() => setShowTargetModal(true)}
-            />
-            
-            {/* 能量消耗 */}
-            <Calories 
-              calories={currentCalories} 
-              targetCalories={trainingTargets.calories}
-              onTargetPress={() => setShowTargetModal(true)}
-            />
-          </ThemedView>
-          
-          {/* 中间列 - 力量数据 */}
-          <ThemedView style={styles.middleColumn}>
-            <ThemedView style={styles.forceRow}>
-              <Force value={leftHandForce} label="左手力" />
-            </ThemedView>
-            <ThemedView style={styles.forceRow}>
-              <Force value={leftLegForce} label="左腿力" />
-            </ThemedView>
-          </ThemedView>
-          
-          <ThemedView style={styles.middleColumn}>
-            <ThemedView style={styles.forceRow}>
-              <Force value={rightHandForce} label="右手力" />
-            </ThemedView>
-            <ThemedView style={styles.forceRow}>
-              <Force value={rightLegForce} label="右腿力" />
-            </ThemedView>
-          </ThemedView>
-          
-          {/* 右侧列 */}
-          <ThemedView style={styles.rightColumn}>
-            {/* 速度 */}
-            <Speed speed={currentSpeed} averageSpeed={averageSpeed} />
-            
-            {/* 心率 */}
-            <HeartRate 
-              heartRate={currentHeartRate} 
-              maxHeartRate={150}
-              targetHeartRateRange={[100, 130]}
-            />
-          </ThemedView>
-          
-          {/* 最右侧列 - 攀爬距离 */}
-          <ThemedView style={styles.rightmostColumn}>
-            <Distance 
-              distance={currentDistance} 
-              targetDistance={trainingTargets.distance}
-              onTargetPress={() => setShowTargetModal(true)}
-            />
-          </ThemedView>
-        </ThemedView>
-        
+      {/* 心率 */}
+      <TouchableOpacity
+        style={styles.heartRate}
+        onPress={() => setIsAccessoryModalVisible(true)}
+      >
+        <HeartRate
+          heartRate={heartRate}
+          maxHeartRate={150}
+          targetHeartRateRange={[100, 130]}
+        />
+      </TouchableOpacity>
 
-        
-        {/* 体姿态 */}
-        <Posture />
-        
-        {/* 阻力控制 */}
-        <ThemedView style={styles.resistanceSection}>
-          <ThemedView style={styles.twoColumnLayout}>
-            <ResistanceControl 
-              title="上肢阻力" 
-              initialValue={upperResistance} 
-              onValueChange={setUpperResistance} 
-              isLeft 
-            />
-            <ResistanceControl 
-              title="下肢阻力" 
-              initialValue={lowerResistance} 
-              onValueChange={setLowerResistance} 
-              isRight
-            />
-          </ThemedView>
-        </ThemedView>
-      </ThemedView>
+      {/* 运动时长（秒） */}
+      <ExerciseDuration
+        style={styles.duration}
+        duration={currentDuration}
+        targetDuration={trainingTargets.duration}
+        onTargetPress={() => setShowTargetModal(true)}
+      />
+
+      {/* 能量消耗 */}
+      <Calories
+        style={styles.calories}
+        calories={currentCalories}
+        targetCalories={trainingTargets.calories}
+        onTargetPress={() => setShowTargetModal(true)}
+      />
+
+      {/* 速度 */}
+      <Speed
+        style={styles.speed}
+        speed={currentSpeed}
+        averageSpeed={averageSpeed}
+      />
+
+      {/* 体姿态 */}
+      <Posture style={styles.posture} />
+
+      {/* 阻力控制 */}
+      <ResistanceControl
+        style={styles.resistanceControlLeft}
+        title="上肢阻力"
+        initialValue={upperResistance}
+        onValueChange={setUpperResistance}
+        isLeft
+      />
+      <ResistanceControl
+        style={styles.resistanceControlRight}
+        title="下肢阻力"
+        initialValue={lowerResistance}
+        onValueChange={setLowerResistance}
+        isRight
+      />
 
       {/* 训练控制 */}
       <StartStopControls
@@ -362,54 +330,15 @@ export default function FreeTrainingScreen() {
       />
 
       {/* 设备列表模态框 */}
-      <Modal 
-        visible={showDeviceList} 
-        animationType="slide" 
-        transparent={true}
-        onRequestClose={() => setShowDeviceList(false)}
-      >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>选择设备</ThemedText>
-            <TouchableOpacity 
-              style={styles.refreshButton} 
-              onPress={startScan}
-              disabled={scanning}
-            >
-              <Ionicons 
-                name={scanning ? "refresh-circle" : "refresh"} 
-                size={20} 
-                color={tintColor} 
-              />
-              <ThemedText>{scanning ? "扫描中..." : "刷新设备"}</ThemedText>
-            </TouchableOpacity>
-            <ScrollView style={styles.deviceList}>
-              {devices.map((device) => (
-                <TouchableOpacity 
-                  key={device.id} 
-                  style={styles.deviceItem}
-                  onPress={() => handleConnectDevice(device)}
-                >
-                  <Ionicons name="bluetooth" size={20} color={tintColor} />
-                  <ThemedView style={styles.deviceInfo}>
-                    <ThemedText style={styles.deviceName}>{device.name}</ThemedText>
-                    <ThemedText style={styles.deviceId}>{device.id}</ThemedText>
-                  </ThemedView>
-                </TouchableOpacity>
-              ))}
-              {devices.length === 0 && !scanning && (
-                <ThemedText style={styles.noDevicesText}>未找到设备</ThemedText>
-              )}
-            </ScrollView>
-            <TouchableOpacity 
-              style={styles.closeButton} 
-              onPress={() => setShowDeviceList(false)}
-            >
-              <ThemedText style={styles.closeButtonText}>关闭</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        </ThemedView>
-      </Modal>
+      <DeviceListModal
+        visible={showDeviceList}
+        devices={devices}
+        scanning={scanning}
+        onRefresh={startScan}
+        onSelectDevice={handleConnectDevice}
+        onClose={() => setShowDeviceList(false)}
+        tintColor={tintColor}
+      />
 
       {/* 目标设置弹窗 */}
       <TargetSettingModal
@@ -500,9 +429,7 @@ export const options = {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
   },
-
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -716,6 +643,46 @@ const styles = StyleSheet.create({
   rightmostColumn: {
     width: '20%',
   },
+  topDataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  timeCircleContainer: {
+    alignItems: 'center',
+  },
+  timeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  timeLabel: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  heartRate: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  distance: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  bottomDataSection: {
+    
+  },
+  resistanceControlLeft: {
+    position: 'absolute',
+    bottom: 200,
+    left: 0,
+    width: '30%',
+  },
+  resistanceControlRight: {
+    position: 'absolute',
+    bottom: 200,
+    right: 0,
+    width: '30%',
+  },
   noDevicesText: {
     textAlign: 'center',
     marginTop: 20,
@@ -816,5 +783,35 @@ const styles = StyleSheet.create({
   modalButtonPrimaryText: {
     color: 'white',
     fontWeight: '600',
+  },
+  heartRate: {
+    position: 'absolute',
+    bottom: 380,
+    right: 0,
+    width: '20%',
+  },
+  posture: {
+    position: 'absolute',
+    bottom: 380,
+    right: 0,
+    width: '20%'
+  },
+  calories: {
+    position: 'absolute',
+    bottom: 380,
+    left: 0,
+    width: '20%'
+  },
+  speed: {
+    position: 'absolute',
+    bottom: 565,
+    left: 0,
+    width: '20%'
+  },
+  duration: {
+    position: 'absolute',
+    bottom: 705,
+    left: 0,
+    width: '20%'
   },
 });

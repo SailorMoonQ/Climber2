@@ -1,23 +1,24 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-// 体姿态组件接口
 export interface PostureProps {
-  // 这里可以留空，只做样子
+  style?: StyleProp<ViewStyle>;
 }
 
 // 体姿态组件
-export const Posture: React.FC<PostureProps> = () => {
+export const Posture: React.FC<PostureProps> = ({
+  style
+}) => {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   
   return (
-    <ThemedView style={styles.dataItem}>
+    <ThemedView style={[styles.dataItem, style]}>
       <ThemedText style={styles.dataLabel}>体姿态</ThemedText>
       <ThemedView style={styles.posturePlaceholder}>
         <ThemedView style={styles.postureIcons}>
@@ -38,7 +39,7 @@ export const Posture: React.FC<PostureProps> = () => {
 
 const styles = StyleSheet.create({
   dataItem: {
-    backgroundColor: '#F8E7E1', // 浅粉色背景，匹配设计图
+    backgroundColor: '#F8E7E1',
     padding: 15,
     borderRadius: 15,
     marginBottom: 10,
@@ -53,6 +54,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
+    backgroundColor: 'transparent'
   },
   postureIcons: {
     flexDirection: 'row',

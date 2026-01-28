@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleProp, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,13 +11,15 @@ export interface ExerciseDurationProps {
   duration: number; // 当前时长（秒）
   targetDuration?: number; // 目标时长（秒）
   onTargetPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 // 运动时长组件
 export const ExerciseDuration: React.FC<ExerciseDurationProps> = ({ 
   duration, 
   targetDuration,
-  onTargetPress 
+  onTargetPress,
+  style
 }) => {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
@@ -30,7 +32,7 @@ export const ExerciseDuration: React.FC<ExerciseDurationProps> = ({
   };
   
   return (
-    <ThemedView style={styles.dataItem}>
+    <ThemedView style={[styles.dataItem, style]}>
       <ThemedText style={styles.dataLabel}>运动时长</ThemedText>
       <ThemedView style={styles.durationValue}>
         <ThemedText style={styles.mainValue}>{formatTime(duration)}</ThemedText>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleProp, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,19 +11,21 @@ export interface CaloriesProps {
   calories: number; // 当前消耗卡路里
   targetCalories?: number; // 目标消耗卡路里
   onTargetPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 // 能量消耗组件
 export const Calories: React.FC<CaloriesProps> = ({ 
   calories, 
   targetCalories,
-  onTargetPress 
+  onTargetPress,
+  style
 }) => {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   
   return (
-    <ThemedView style={styles.dataItem}>
+    <ThemedView style={[styles.dataItem, style]}>
       <ThemedText style={styles.dataLabel}>能量消耗(kcal)</ThemedText>
       <ThemedText style={styles.mainValue}>{calories.toFixed(1)}</ThemedText>
       {targetCalories && (
@@ -43,7 +45,8 @@ const styles = StyleSheet.create({
   dataItem: {
     backgroundColor: '#F8E7E1', // 浅粉色背景，匹配设计图
     padding: 15,
-    borderRadius: 15,
+    borderBottomRightRadius: 15,
+    borderTopRightRadius: 15,
     marginBottom: 10,
     alignItems: 'center',
   },

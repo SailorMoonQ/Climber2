@@ -1,13 +1,14 @@
-import { StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
+import { Alert, Modal, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import useBluetooth from '../hooks/useBluetooth';
-import { BluetoothConnectionStatus, BLUETOOTH_COMMANDS } from '@/constants/bluetoothConfig';
+import { BLUETOOTH_COMMANDS, BluetoothConnectionStatus } from '@/constants/bluetoothConfig';
 import { useNavigation } from "expo-router";
+import { DeviceListModal } from '@/components/ui/device-list-modal';
 
 export default function DynamicAssessmentScreen() {
   const colorScheme = useColorScheme();
@@ -431,54 +432,15 @@ export default function DynamicAssessmentScreen() {
       )}
 
       {/* 设备列表模态框 */}
-      <Modal
+      <DeviceListModal
         visible={showDeviceList}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowDeviceList(false)}
-      >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>选择设备</ThemedText>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={startScan}
-              disabled={scanning}
-            >
-              <Ionicons
-                name={scanning ? "refresh-circle" : "refresh"}
-                size={20}
-                color={tintColor}
-              />
-              <ThemedText>{scanning ? "扫描中..." : "刷新设备"}</ThemedText>
-            </TouchableOpacity>
-            <ScrollView style={styles.deviceList}>
-              {devices.map((device) => (
-                <TouchableOpacity
-                  key={device.id}
-                  style={styles.deviceItem}
-                  onPress={() => handleConnectDevice(device)}
-                >
-                  <Ionicons name="bluetooth" size={20} color={tintColor}/>
-                  <ThemedView style={styles.deviceInfo}>
-                    <ThemedText style={styles.deviceName}>{device.name}</ThemedText>
-                    <ThemedText style={styles.deviceId}>{device.id}</ThemedText>
-                  </ThemedView>
-                </TouchableOpacity>
-              ))}
-              {devices.length === 0 && !scanning && (
-                <ThemedText style={styles.noDevicesText}>未找到设备</ThemedText>
-              )}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowDeviceList(false)}
-            >
-              <ThemedText style={styles.closeButtonText}>关闭</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        </ThemedView>
-      </Modal>
+        devices={devices}
+        scanning={scanning}
+        onRefresh={startScan}
+        onSelectDevice={handleConnectDevice}
+        onClose={() => setShowDeviceList(false)}
+        tintColor={tintColor}
+      />
 
       {/* 参数设置模态框 */}
       <Modal

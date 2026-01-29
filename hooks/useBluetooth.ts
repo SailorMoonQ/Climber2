@@ -21,6 +21,7 @@ export interface NotificationData {
   lowerPosition: number;
   upperForce: number;
   lowerForce: number;
+  heartRate?: number; // 心率（bpm）
   upperLeftPosition?: number;
   upperRightPosition?: number;
   lowerLeftPosition?: number;

@@ -17,6 +17,8 @@ import { ResistanceControl } from "@/components/ui/resistance-control";
 import { DeviceListModal } from '@/components/ui/device-list-modal';
 import { HeartRate } from "@/components/training-data/heart-rate";
 import { ForceBar } from "@/components/force-bar";
+import { Distance } from "@/components/training-data/distance";
+import { AccessoryModal } from "@/components/ui/accessory-modal";
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
@@ -91,13 +93,10 @@ export default function FreeTrainingScreen() {
   // 处理蓝牙数据
   useEffect(() => {
     if (parsedData) {
-      // 更新力量数据
       setLeftHandForce(parsedData.upperLeftForce || 0);
       setRightHandForce(parsedData.upperRightForce || 0);
       setLeftLegForce(parsedData.lowerLeftForce || 0);
       setRightLegForce(parsedData.lowerRightForce || 0);
-      
-      // 可以根据需要更新其他数据
     }
   }, [parsedData]);
 
@@ -260,7 +259,14 @@ export default function FreeTrainingScreen() {
   };
 
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
-  const [heartRate, setHeartRate] = useState(134);
+
+  // 配件数据
+  const [accessories, setAccessories] = useState([
+    { id: '1', name: '心率带', status: 'disconnected', value: '' },
+    { id: '2', name: '智能手表', status: 'disconnected', value: '' },
+    { id: '3', name: '血氧仪', status: 'disconnected', value: '' },
+  ]);
+  const [selectedMode, setSelectedMode] = useState('有氧');
 
   return (
     <ThemedView style={styles.container}>
@@ -276,11 +282,10 @@ export default function FreeTrainingScreen() {
 
       {/* 心率 */}
       <TouchableOpacity
-        style={styles.heartRate}
+        style={styles.heartRateWrapper}
         onPress={() => setIsAccessoryModalVisible(true)}
       >
         <HeartRate
-          heartRate={heartRate}
           maxHeartRate={150}
           targetHeartRateRange={[100, 130]}
         />
@@ -308,6 +313,16 @@ export default function FreeTrainingScreen() {
         speed={currentSpeed}
         averageSpeed={averageSpeed}
       />
+
+      {/* 攀爬距离 */}
+      <Distance
+        style={styles.distance}
+        distance={currentDistance}
+        targetDistance={trainingTargets!.distance || 0}
+        onTargetPress={() => setShowTargetModal(true)}
+      />
+
+
 
       {/* 体姿态 */}
       <Posture style={styles.posture} />
@@ -425,6 +440,36 @@ export default function FreeTrainingScreen() {
           </ThemedView>
         </ThemedView>
       </Modal>
+
+      {/* 连接配件弹窗 */}
+      <AccessoryModal
+        visible={isAccessoryModalVisible}
+        onClose={() => setIsAccessoryModalVisible(false)}
+        maxHeartRate={150}
+        targetHeartRateRange={[100, 130]}
+        currentHeartRate={currentHeartRate}
+        accessories={accessories}
+        onAccessoryConnect={(id) => {
+          setAccessories(prev => prev.map(acc => 
+            acc.id === id ? {...acc, status: 'connecting'} : acc
+          ));
+          // 模拟连接过程
+          setTimeout(() => {
+            setAccessories(prev => prev.map(acc => 
+              acc.id === id ? {...acc, status: 'connected', value: '72bpm'} : acc
+            ));
+          }, 1000);
+        }}
+        onAccessoryDisconnect={(id) => {
+          setAccessories(prev => prev.map(acc => 
+            acc.id === id ? {...acc, status: 'disconnected', value: ''} : acc
+          ));
+        }}
+        onModeSelect={(mode) => {
+          setSelectedMode(mode);
+        }}
+        selectedMode={selectedMode}
+      />
     </ThemedView>
   );
 }
@@ -783,7 +828,13 @@ const styles = StyleSheet.create({
   },
   heartRate: {
     position: 'absolute',
-    bottom: 380,
+    bottom: 600,
+    right: 0,
+    width: '20%',
+  },
+  heartRateWrapper: {
+    position: 'absolute',
+    bottom: 600,
     right: 0,
     width: '20%',
   },
@@ -825,5 +876,11 @@ const styles = StyleSheet.create({
   forceBarItem: {
     marginHorizontal: 40,
     marginVertical: 20,
-  }
+  },
+  distance:  {
+    position: 'absolute',
+    bottom: 750,
+    right: 0,
+    width: '20%'
+  },
 });

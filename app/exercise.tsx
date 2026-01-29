@@ -25,7 +25,7 @@ export default function ExerciseScreen() {
   // 状态管理
   const [user, setUser] = useState<User | null>(null);
   const [climbingDistance, setClimbingDistance] = useState(342);
-  const [heartRate, setHeartRate] = useState(134);
+
   const [upperResistance, setUpperResistance] = useState(5);
   const [lowerResistance, setLowerResistance] = useState(4);
   const [isExerciseStarted, setIsExerciseStarted] = useState(false);
@@ -154,20 +154,7 @@ export default function ExerciseScreen() {
     }
   }, [isExerciseStarted, isPaused, remainingTime]);
 
-  // 心率监测
-  useEffect(() => {
-    if (isExerciseStarted) {
-      // 模拟心率变化
-      const heartRateTimer = setInterval(() => {
-        // 生成120-230之间的随机心率
-        const newHeartRate = Math.floor(Math.random() * 110) + 120;
-        setHeartRate(newHeartRate);
-        setHeartRateAlert(newHeartRate > 150);
-      }, 2000);
 
-      return () => clearInterval(heartRateTimer);
-    }
-  }, [isExerciseStarted]);
 
   // 当阻力值变化时发送蓝牙信号
   useEffect(() => {
@@ -246,7 +233,6 @@ export default function ExerciseScreen() {
           onPress={() => setIsAccessoryModalVisible(true)}
         >
           <HeartRate
-            heartRate={heartRate}
             maxHeartRate={150}
             targetHeartRateRange={[100, 130]}
           />
@@ -312,7 +298,6 @@ export default function ExerciseScreen() {
         onClose={() => setIsAccessoryModalVisible(false)}
         maxHeartRate={150}
         targetHeartRateRange={[100, 130]}
-        currentHeartRate={heartRate}
         accessories={accessories}
         selectedMode={selectedMode}
       />

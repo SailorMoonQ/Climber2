@@ -8,7 +8,7 @@ interface AccessoryModalProps {
   onClose: () => void;
   maxHeartRate?: number;
   targetHeartRateRange?: [number, number];
-  currentHeartRate?: number;
+
   accessories?: Array<{
     id: string;
     name: string;
@@ -26,7 +26,7 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
   onClose,
   maxHeartRate = 150,
   targetHeartRateRange = [100, 130],
-  currentHeartRate,
+
   accessories = [],
   onAccessoryConnect,
   onAccessoryDisconnect,

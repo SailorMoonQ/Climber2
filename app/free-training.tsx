@@ -16,6 +16,7 @@ import { Posture } from "@/components/training-data/posture";
 import { ResistanceControl } from "@/components/ui/resistance-control";
 import { DeviceListModal } from '@/components/ui/device-list-modal';
 import { HeartRate } from "@/components/training-data/heart-rate";
+import { ForceBar } from "@/components/force-bar";
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
@@ -52,9 +53,9 @@ export default function FreeTrainingScreen() {
   const [currentHeartRate, setCurrentHeartRate] = useState(0); // 心率（bpm）
   
   // 力量数据
-  const [leftHandForce, setLeftHandForce] = useState(0); // 左手力（N）
-  const [rightHandForce, setRightHandForce] = useState(0); // 右手力（N）
-  const [leftLegForce, setLeftLegForce] = useState(0); // 左腿力（N）
+  const [leftHandForce, setLeftHandForce] = useState(20.2); // 左手力（N）
+  const [rightHandForce, setRightHandForce] = useState(14.2); // 右手力（N）
+  const [leftLegForce, setLeftLegForce] = useState(18.6); // 左腿力（N）
   const [rightLegForce, setRightLegForce] = useState(0); // 右腿力（N）
 
   const {
@@ -266,6 +267,13 @@ export default function FreeTrainingScreen() {
       {/* 蓝牙连接状态 */}
       {renderConnectionStatus()}
 
+      <ThemedView style={styles.forceMonitorContainer}>
+        <ForceBar value={leftHandForce} label="左手力" style={styles.forceBarItem} />
+        <ForceBar value={rightHandForce} label="右手力" style={styles.forceBarItem} />
+        <ForceBar value={leftLegForce} label="左腿力" style={styles.forceBarItem} />
+        <ForceBar value={rightLegForce} label="右腿力" style={styles.forceBarItem} />
+      </ThemedView>
+
       {/* 心率 */}
       <TouchableOpacity
         style={styles.heartRate}
@@ -282,7 +290,7 @@ export default function FreeTrainingScreen() {
       <ExerciseDuration
         style={styles.duration}
         duration={currentDuration}
-        targetDuration={trainingTargets.duration}
+        targetDuration={trainingTargets!.duration || 0}
         onTargetPress={() => setShowTargetModal(true)}
       />
 
@@ -290,7 +298,7 @@ export default function FreeTrainingScreen() {
       <Calories
         style={styles.calories}
         calories={currentCalories}
-        targetCalories={trainingTargets.calories}
+        targetCalories={trainingTargets!.calories || 0}
         onTargetPress={() => setShowTargetModal(true)}
       />
 
@@ -803,4 +811,19 @@ const styles = StyleSheet.create({
     left: 0,
     width: '20%'
   },
+  forceMonitorContainer: {
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+    paddingHorizontal: 240,
+    paddingVertical: 40,
+  },
+  forceBarItem: {
+    marginHorizontal: 40,
+    marginVertical: 20,
+  }
 });

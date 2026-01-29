@@ -660,17 +660,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.7,
   },
-  heartRate: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  distance: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  bottomDataSection: {
-    
-  },
   resistanceControlLeft: {
     position: 'absolute',
     bottom: 200,

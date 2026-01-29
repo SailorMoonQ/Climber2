@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { ResistanceControl } from '@/components/ui/resistance-control';
@@ -15,6 +15,7 @@ import { CountdownOverlay } from "@/components/ui/countdown-overlay";
 import { StartStopControls } from "@/components/ui/start-stop-controls";
 import { PauseModal } from "@/components/ui/pause-modal";
 import { EndModal } from "@/components/ui/end-modal";
+import { AccessoryModal } from "@/components/ui/accessory-modal";
 
 export default function ExerciseScreen() {
   // 获取路由参数
@@ -34,6 +35,12 @@ export default function ExerciseScreen() {
   const [countdownVisible, setCountdownVisible] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<string>('力量'); // 默认选中力量模式
+  const [accessories, setAccessories] = useState([
+    { id: 'hr1', name: '心率带 SHD213', status: 'connected' as const, value: '72' },
+    { id: 'pose1', name: '体姿态 A1313123', status: 'connecting' as const },
+    { id: 'hr2', name: '心率带 SHD213', status: 'disconnected' as const },
+  ]);
   const [heartRateAlert, setHeartRateAlert] = useState(false);
   const [isPauseModalVisible, setIsPauseModalVisible] = useState(false);
   const [isEndModalVisible, setIsEndModalVisible] = useState(false);
@@ -300,87 +307,15 @@ export default function ExerciseScreen() {
       )}
 
       {/* 连接配件弹窗 */}
-      <Modal
+      <AccessoryModal
         visible={isAccessoryModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setIsAccessoryModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ThemedText style={styles.modalTitle}>设置配件</ThemedText>
-
-            {/* 最大心率 */}
-            <View style={styles.modalRow}>
-              <ThemedText style={styles.modalLabel}>最大心率</ThemedText>
-              <ThemedText style={styles.modalValue}>150bpm</ThemedText>
-            </View>
-
-            {/* 目标区间 */}
-            <View style={styles.modalRow}>
-              <ThemedText style={styles.modalLabel}>目标区间</ThemedText>
-              <View style={styles.targetRange}>
-                <ThemedText style={styles.targetValue}>100bpm</ThemedText>
-                <ThemedText style={styles.targetSeparator}>—</ThemedText>
-                <ThemedText style={styles.targetValue}>130bpm</ThemedText>
-              </View>
-            </View>
-
-            {/* 运动模式 */}
-            <View style={styles.modeContainer}>
-              <TouchableOpacity style={styles.modeButton}>
-                <ThemedText style={styles.modeText}>热身</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modeButton}>
-                <ThemedText style={styles.modeText}>力量</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modeButton}>
-                <ThemedText style={styles.modeText}>有氧</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modeButton}>
-                <ThemedText style={styles.modeText}>无氧</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {/* 连接配件 */}
-            <ThemedText style={styles.sectionTitle}>连接配件</ThemedText>
-            <ThemedText style={styles.accessoryStatus}>得心应手</ThemedText>
-
-            {/* 心率带 */}
-            <View style={styles.accessoryRow}>
-              <ThemedText style={styles.accessoryLabel}>心率带 SHD213</ThemedText>
-              <ThemedText style={styles.accessoryValue}>72</ThemedText>
-              <TouchableOpacity style={styles.disconnectButton}>
-                <ThemedText style={styles.disconnectText}>断开</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {/* 体姿态 */}
-            <View style={styles.accessoryRow}>
-              <ThemedText style={styles.accessoryLabel}>体姿态 A1313123</ThemedText>
-              <TouchableOpacity style={styles.connectingButton}>
-                <ThemedText style={styles.connectingText}>连接中</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {/* 心率带 */}
-            <View style={styles.accessoryRow}>
-              <ThemedText style={styles.accessoryLabel}>心率带 SHD213</ThemedText>
-              <TouchableOpacity style={styles.connectButton}>
-                <ThemedText style={styles.connectText}>连接</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {/* 确认按钮 */}
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={() => setIsAccessoryModalVisible(false)}
-            >
-              <Ionicons name="checkmark" size={24} color="#fff"/>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setIsAccessoryModalVisible(false)}
+        maxHeartRate={150}
+        targetHeartRateRange={[100, 130]}
+        currentHeartRate={heartRate}
+        accessories={accessories}
+        selectedMode={selectedMode}
+      />
 
       {/* 暂停运动弹窗 */}
       <PauseModal
@@ -569,138 +504,5 @@ const styles = StyleSheet.create({
     minWidth: 30,
     textAlign: 'center',
   },
-  // 弹窗样式（仅保留连接配件弹窗使用的样式）
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    width: '80%',
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  modalLabel: {
-    fontSize: 16,
-    color: '#000',
-  },
-  modalValue: {
-    fontSize: 16,
-    color: '#000',
-    fontWeight: 'bold',
-  },
-  targetRange: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  targetValue: {
-    fontSize: 16,
-    color: '#000',
-    fontWeight: 'bold',
-  },
-  targetSeparator: {
-    fontSize: 16,
-    color: '#000',
-    marginHorizontal: 10,
-  },
-  modeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  modeButton: {
-    backgroundColor: '#F5E4DC',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 15,
-  },
-  modeText: {
-    fontSize: 14,
-    color: '#000',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 10,
-  },
-  accessoryStatus: {
-    fontSize: 16,
-    color: '#FF7F50',
-    marginBottom: 15,
-    fontWeight: 'bold',
-  },
-  accessoryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  accessoryLabel: {
-    fontSize: 14,
-    color: '#000',
-  },
-  accessoryValue: {
-    fontSize: 18,
-    color: '#000',
-    fontWeight: 'bold',
-  },
-  disconnectButton: {
-    backgroundColor: '#F5E4DC',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  disconnectText: {
-    fontSize: 12,
-    color: '#FF7F50',
-  },
-  connectingButton: {
-    backgroundColor: '#F5E4DC',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  connectingText: {
-    fontSize: 12,
-    color: '#008000',
-  },
-  connectButton: {
-    backgroundColor: '#F5E4DC',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  connectText: {
-    fontSize: 12,
-    color: '#FF7F50',
-  },
-  confirmButton: {
-    backgroundColor: '#FF7F50',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 20,
-  }
+
 });

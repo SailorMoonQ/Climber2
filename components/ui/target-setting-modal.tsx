@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Modal, TouchableOpacity, TextInput } from 'react-native';
+import { Modal, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '../themed-text';
 
 interface TargetSetting {

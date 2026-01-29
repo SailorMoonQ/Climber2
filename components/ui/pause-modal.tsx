@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, TouchableOpacity, Modal } from 'react-native';
+import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '../themed-text';
 
 interface PauseModalProps {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, ScrollView, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import { Modal, ScrollView, StyleSheet, TextStyle, TouchableOpacity, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
 import { Ionicons } from '@expo/vector-icons';

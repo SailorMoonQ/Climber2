@@ -1,21 +1,21 @@
-import { StyleSheet, ActivityIndicator, FlatList, Alert, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import DatabaseService from '@/services/database-service';
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
-import { Link } from "expo-router";
 import UserListGrid from '@/components/user-list-grid';
 import { User } from "@/interface/user.interface";
 import { ExerciseRecord } from '@/interface/exercise-record.interface';
+import { useUser } from '@/contexts/UserContext';
 
 export default function UserManagementScreen() {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const { selectedUser, setSelectedUser, currentUser, setCurrentUser } = useUser();
   const [users, setUsers] = useState<User[]>([]);
   const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,12 +33,22 @@ export default function UserManagementScreen() {
       await DatabaseService.init();
       const userList = await DatabaseService.getAllUsers();
       setUsers(userList);
+      
+      // 如果当前没有选中用户，且用户列表不为空，则设置第一个用户为选中用户
+      if (userList.length > 0 && !selectedUser) {
+        setSelectedUser(userList[0]);
+      }
+      
+      // 如果当前没有当前用户，且用户列表不为空，则设置第一个用户为当前用户
+      if (userList.length > 0 && !currentUser) {
+        setCurrentUser(userList[0]);
+      }
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedUser, currentUser, setSelectedUser, setCurrentUser]);
 
   // 初始化数据库和加载用户数据
   useEffect(() => {
@@ -83,7 +93,7 @@ export default function UserManagementScreen() {
       }
     };
     void loadExerciseRecords();
-  }, []);
+  }, [setSelectedUser]);
 
   // 编辑用户功能仍保留在主屏幕，因为它可能涉及更复杂的交互
   const handleEditUser = useCallback((user: User) => {
@@ -99,16 +109,32 @@ export default function UserManagementScreen() {
       // 重新加载用户列表
       const updatedUsers = await DatabaseService.getAllUsers();
       setUsers(updatedUsers);
-      // 如果删除的是当前选中的用户，清除选中状态
+      // 如果删除的是当前选中的用户，尝试设置下一个用户为选中用户
       if (selectedUser && selectedUser.id === user.id) {
-        setSelectedUser(null);
-        setExerciseRecords([]);
+        if (updatedUsers.length > 0) {
+          // 设置第一个用户为选中用户
+          setSelectedUser(updatedUsers[0]);
+          // 同时更新当前用户
+          setCurrentUser(updatedUsers[0]);
+        } else {
+          // 如果没有剩余用户，清空选中状态
+          setSelectedUser(null);
+          setCurrentUser(null);
+          setExerciseRecords([]);
+        }
+      } else if (currentUser && currentUser.id === user.id) {
+        // 如果删除的是当前用户但不是选中用户，也需要更新当前用户
+        if (updatedUsers.length > 0) {
+          setCurrentUser(updatedUsers[0]);
+        } else {
+          setCurrentUser(null);
+        }
       }
     } catch (error) {
       console.error('删除用户失败:', error);
       Alert.alert('错误', '删除用户失败，请重试');
     }
-  }, [selectedUser]);
+  }, [selectedUser, currentUser, setSelectedUser, setCurrentUser]);
 
   const renderExerciseItem = useCallback(({item}: { item: ExerciseRecord }) => (
     <ThemedView style={styles.exerciseItem}>

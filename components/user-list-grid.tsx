@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, FlatList, TextInput, ScrollView, Modal } from 'react-native';
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { User } from '@/interface/user.interface';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { useNavigation, useRouter } from "expo-router";
-
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNavigation, useRouter } from 'expo-router';
+import { User } from '@/interface/user.interface';
+import { useUser } from '@/contexts/UserContext';
 
 interface UserListGridProps {
   users: User[];
@@ -26,9 +26,9 @@ export default function UserListGrid({
   const router = useRouter();
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
+  const { selectedUser: globalSelectedUser, setSelectedUser: setGlobalSelectedUser } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredUsers, setFilteredUsers] = useState<User[]>(users);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
   // 搜索功能
@@ -45,18 +45,11 @@ export default function UserListGrid({
     }
   }, [searchQuery, users]);
 
-  // 更新选中用户
-  useEffect(() => {
-    if (users.length > 0 && !selectedUser) {
-      setSelectedUser(users[0]);
-    }
-  }, [selectedUser, users]);
-
   const renderUserItem = ({item}: { item: User }) => (
     <TouchableOpacity
       style={styles.userItem}
       onPress={() => {
-        setSelectedUser(item);
+        setGlobalSelectedUser(item);
         onUserSelect(item);
       }}
     >
@@ -129,8 +122,8 @@ export default function UserListGrid({
         <TouchableOpacity
           style={[styles.bottomButton, styles.assessmentButton]}
           onPress={() => {
-            if (selectedUser) {
-              router.push(`/exercise?id=${selectedUser.id}`);
+            if (globalSelectedUser) {
+              router.push(`/exercise?id=${globalSelectedUser.id}`);
             }
           }}
         >
@@ -139,6 +132,11 @@ export default function UserListGrid({
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.bottomButton, styles.trainingButton]}
+          onPress={() => {
+            if (globalSelectedUser) {
+              router.push(`/free-training?id=${globalSelectedUser.id}`);
+            }
+          }}
         >
           <Ionicons name="fitness-outline" size={24} color="#fff"/>
           <ThemedText style={styles.bottomButtonText}>训练</ThemedText>
@@ -173,8 +171,8 @@ export default function UserListGrid({
                 style={[styles.modalButton, styles.destructiveButton]}
                 onPress={() => {
                   setIsDeleteModalVisible(false);
-                  if (selectedUser) {
-                    onUserDelete(selectedUser);
+                  if (globalSelectedUser) {
+                    onUserDelete(globalSelectedUser);
                   }
                 }}
               >

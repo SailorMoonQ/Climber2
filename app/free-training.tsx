@@ -2,10 +2,13 @@ import { Alert, Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
 import useBluetooth from '../hooks/useBluetooth';
+import { useUser } from '@/contexts/UserContext';
+import DatabaseService from '@/services/database-service';
 import { BLUETOOTH_COMMANDS, BluetoothConnectionStatus } from '@/constants/bluetoothConfig';
 import { TargetSettingModal, TargetSettingModalProps } from '@/components/ui/target-setting-modal';
 import { StartStopControls } from '@/components/ui/start-stop-controls';
@@ -19,17 +22,37 @@ import { HeartRate } from "@/components/training-data/heart-rate";
 import { ForceBar } from "@/components/force-bar";
 import { Distance } from "@/components/training-data/distance";
 import { AccessoryModal } from "@/components/ui/accessory-modal";
+import { User } from "@/interface/user.interface";
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
+  
+  // 使用全局用户上下文
+  const { selectedUser } = useUser();
+  
+  const [user, setUser] = useState<User | null>(null);
+  const params = useLocalSearchParams<{ id?: string }>();
+  const userIdFromParams = params.id;
+  const userId = userIdFromParams || selectedUser?.id;
+
+  useEffect(() => {
+    if (userId) {
+      DatabaseService.getUserById(userId).then(fetchedUser => {
+        if (fetchedUser) {
+          setUser(fetchedUser);
+        }
+      });
+    }
+  }, [userId, selectedUser]);
+
   const [trainingStarted, setTrainingStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showDeviceList, setShowDeviceList] = useState(false);
   const [showControlPanel, setShowControlPanel] = useState(false);
   
   // 训练参数
-  const [params, setParams] = useState({
+  const [paramsState, setParamsState] = useState({
     resistanceLevel: 5, // 阻力级别
     speed: 5, // 速度
   });
@@ -73,6 +96,12 @@ export default function FreeTrainingScreen() {
     sendData,
     parsedData
   } = useBluetooth();
+  
+  // 设置动态标题
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.setOptions({title: `动态姿势评估 ${user?.name || userId}`});
+  }, [navigation, userId, user]);
   
   // 计时器
   useEffect(() => {

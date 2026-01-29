@@ -16,11 +16,15 @@ import { StartStopControls } from "@/components/ui/start-stop-controls";
 import { PauseModal } from "@/components/ui/pause-modal";
 import { EndModal } from "@/components/ui/end-modal";
 import { AccessoryModal } from "@/components/ui/accessory-modal";
+import { useUser } from '@/contexts/UserContext';
 
 export default function ExerciseScreen() {
   // 获取路由参数
   const params = useLocalSearchParams();
   const userId = params.id as string;
+  
+  // 使用全局用户上下文
+  const { selectedUser } = useUser();
 
   // 状态管理
   const [user, setUser] = useState<User | null>(null);
@@ -107,16 +111,23 @@ export default function ExerciseScreen() {
     setHeartRateAlert(false);
   };
 
-  // 根据userId获取用户信息
+  // 根据userId获取用户信息，优先使用路由参数，否则使用全局选中的用户
   useEffect(() => {
     const loadUser = async () => {
-      if (userId) {
-        const userInfo = await DatabaseService.getUserById(userId);
+      let targetUserId = userId;
+      
+      // 如果路由参数中没有提供userId，使用全局选中的用户
+      if (!targetUserId && selectedUser) {
+        targetUserId = selectedUser.id;
+      }
+      
+      if (targetUserId) {
+        const userInfo = await DatabaseService.getUserById(targetUserId);
         setUser(userInfo);
       }
     };
     void loadUser();
-  }, [userId]);
+  }, [userId, selectedUser]);
 
   const navigation = useNavigation();
   useLayoutEffect(() => {

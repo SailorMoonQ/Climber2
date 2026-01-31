@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BleManager, Device, State } from 'react-native-ble-plx';
+import { Device, State } from 'react-native-ble-plx';
 import {
   BLUETOOTH_SERVICES,
   BLUETOOTH_CHARACTERISTICS,
   BluetoothConnectionStatus,
-  BLUETOOTH_COMMANDS
+  BLUETOOTH_COMMANDS,
+  DEVICE_NAME_PREFIXES
 } from '@/constants/bluetoothConfig';
+import { Buffer } from 'buffer';
+import { BLEService } from "@/services/bluetooth";
 
 // 定义阻力数据结构
 export interface ResistanceData {
@@ -33,7 +36,6 @@ export interface NotificationData {
 }
 
 const useBluetooth = () => {
-  const [manager, setManager] = useState<BleManager | null>(null);
   const [isEnabled, setIsEnabled] = useState<boolean>(false);
   const [connectionStatus, setConnectionStatus] = useState<BluetoothConnectionStatus>(BluetoothConnectionStatus.DISCONNECTED);
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
@@ -42,10 +44,7 @@ const useBluetooth = () => {
 
   useEffect(() => {
     try {
-      const newManager = new BleManager();
-      setManager(newManager);
-
-      const subscription = newManager.onStateChange((state) => {
+      const subscription = BLEService.manager.onStateChange((state) => {
         setIsEnabled(state === State.PoweredOn);
         if (state === State.PoweredOn) {
           startScan();
@@ -54,9 +53,10 @@ const useBluetooth = () => {
         }
       }, true);
 
+
+
       return () => {
         subscription.remove();
-        newManager.destroy();
       };
     } catch (error) {
       console.error('Failed to initialize Bluetooth manager:', error);
@@ -64,13 +64,13 @@ const useBluetooth = () => {
   }, []);
 
   const startScan = useCallback(async () => {
-    if (!manager || scanning) return;
+    if (!BLEService.manager || scanning) return;
 
     setScanning(true);
     setDevices([]);
 
     try {
-      await manager.startDeviceScan(
+      await BLEService.manager.startDeviceScan(
         null, // 扫描所有服务
         null, // 没有过滤条件
         (error, device) => {
@@ -80,14 +80,18 @@ const useBluetooth = () => {
             return;
           }
 
-          // 只添加具有特定前缀的设备
-          // if (device.name?.startsWith(DEVICE_NAME_PREFIXES.LOWER_COMPUTER)) {
-          //   setDevices((prevDevices) => {
-          //     const exists = prevDevices.find(d => d.id === device.id);
-          //     if (exists) return prevDevices;
-          //     return [...prevDevices, device];
-          //   });
-          // }
+          if (device) {
+             // 只添加具有特定前缀的设备
+             // 使用配置文件中的设备名称前缀进行过滤
+             if (device.name?.startsWith(DEVICE_NAME_PREFIXES.LOWER_COMPUTER) || 
+                 device.name?.startsWith(DEVICE_NAME_PREFIXES.UPPER_COMPUTER)) {
+               setDevices((prevDevices) => {
+                 const exists = prevDevices.find(d => d.id === device.id);
+                 if (exists) return prevDevices;
+                 return [...prevDevices, device];
+               });
+             }
+           }
         }
       );
 
@@ -95,38 +99,77 @@ const useBluetooth = () => {
       setTimeout(() => {
         stopScan();
       }, 10000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start scan:', error);
+      // Check if the error is a BleError and log its reason
+      if (error.hasOwnProperty('reason')) {
+        console.error('BLE Error reason:', error.reason);
+      }
       setScanning(false);
     }
-  }, [manager, scanning]);
+  }, [BLEService.manager, scanning]);
 
   const stopScan = useCallback(() => {
-    if (!manager || !scanning) return;
+    if (!BLEService.manager || !scanning) return;
 
-    manager.stopDeviceScan();
-    setScanning(false);
-  }, [manager, scanning]);
+    try {
+      BLEService.manager.stopDeviceScan();
+    } catch (error) {
+      console.error('Failed to stop scan:', error);
+    } finally {
+      setScanning(false);
+    }
+  }, [BLEService.manager, scanning]);
 
   const connectToDevice = useCallback(async (device: Device) => {
-    if (!manager) return false;
+    if (!BLEService.manager) return false;
 
     setConnectionStatus(BluetoothConnectionStatus.CONNECTING);
 
     try {
-      const connectedDevice = await manager.connectToDevice(device.id);
-      await connectedDevice.discoverAllServicesAndCharacteristics();
-      
-      setConnectedDevice(connectedDevice);
+      // Ensure the device is not already connected
+      if (connectedDevice && connectedDevice.id === device.id) {
+        console.log('Device already connected');
+        setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
+        return true;
+      }
+
+      // Disconnect from any existing device first
+      if (connectedDevice) {
+        // 直接执行断开连接操作，避免循环依赖
+        setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
+        
+        try {
+          if (connectedDevice) {
+            await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
+          }
+        } catch (disconnectError) {
+          console.error('Error during disconnection:', disconnectError);
+        }
+        
+        setConnectedDevice(null);
+        setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
+      }
+
+      const newConnectedDevice = await BLEService.manager.connectToDevice(device.id, { timeout: 10000 }); // 10秒超时
+
+      // Discover services and characteristics
+      await newConnectedDevice.discoverAllServicesAndCharacteristics();
+
+      setConnectedDevice(newConnectedDevice);
       setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
-      
-      // 设置通知
-      connectedDevice.monitorCharacteristicForService(
+
+      // Set up notifications
+      newConnectedDevice.monitorCharacteristicForService(
         BLUETOOTH_SERVICES.MAIN_SERVICE,
         BLUETOOTH_CHARACTERISTICS.NOTIFY_CHARACTERISTIC,
         (error, characteristic) => {
           if (error) {
             console.error('Monitor error:', error);
+            // Check if the error is a BleError and log its reason
+            if (error.hasOwnProperty('reason')) {
+              console.error('BLE Monitor Error reason:', error.reason);
+            }
             return;
           }
 
@@ -139,56 +182,74 @@ const useBluetooth = () => {
       );
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Connection failed:', error);
+      // Check if the error is a BleError and log its reason
+      if (error.hasOwnProperty('reason')) {
+        console.error('BLE Connection Error reason:', error.reason);
+      }
       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
       return false;
     }
-  }, [manager]);
+  }, [BLEService.manager, connectedDevice]);
 
   const disconnectFromDevice = useCallback(async () => {
-    if (!manager || !connectedDevice) return;
+    if (!BLEService.manager || !connectedDevice) return;
 
     setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
 
     try {
-      await manager.cancelDeviceConnection(connectedDevice.id);
+      await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
       setConnectedDevice(null);
       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Disconnection failed:', error);
+      // Check if the error is a BleError and log its reason
+      if (error.hasOwnProperty('reason')) {
+        console.error('BLE Disconnection Error reason:', error.reason);
+      }
       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
     }
-  }, [manager, connectedDevice]);
+  }, [BLEService.manager, connectedDevice]);
 
   const sendResistanceData = useCallback(async (resistanceData: ResistanceData) => {
-    if (!manager || !connectedDevice) return false;
+    if (!BLEService.manager || !connectedDevice) {
+      console.warn('Cannot send data: no manager or connected device');
+      return false;
+    }
 
     try {
       const encodedData = encodeResistanceData(resistanceData);
       console.log('Sending encoded data:', Buffer.from(encodedData, 'utf-8').toString('base64'));
-      await connectedDevice.writeCharacteristicWithResponseForService(
+
+      const characteristic = await connectedDevice.writeCharacteristicWithResponseForService(
         BLUETOOTH_SERVICES.MAIN_SERVICE,
         BLUETOOTH_CHARACTERISTICS.WRITE_CHARACTERISTIC,
         encodedData
       );
+
+      console.log('Data sent successfully:', characteristic);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send resistance data:', error);
+      // Check if the error is a BleError and log its reason
+      if (error.hasOwnProperty('reason')) {
+        console.error('BLE Send Data Error reason:', error.reason);
+      }
       return false;
     }
-  }, [manager, connectedDevice]);
+  }, [BLEService.manager, connectedDevice]);
 
   // 解析通知数据 (6字节)
   const parseBluetoothNotificationData = (value: string): NotificationData | null => {
     try {
       const buffer = Buffer.from(value, 'base64');
-      
+
       if (buffer.length !== 6) {
         console.error('Invalid notification data length:', buffer.length);
         return null;
       }
-      
+
       const data: NotificationData = {
         // Byte0: 上肢实时位置 (cm)
         upperPosition: buffer.readUInt8(0),
@@ -199,7 +260,7 @@ const useBluetooth = () => {
         // Byte4-5: 下肢实时力 (N), 小端格式
         lowerForce: buffer.readInt16LE(4)
       };
-      
+
       return data;
     } catch (error) {
       console.error('Failed to parse Bluetooth notification data:', error);
@@ -215,17 +276,17 @@ const useBluetooth = () => {
       const upperRight = Math.max(0, Math.min(15, resistanceData.upperRight));
       const lowerLeft = Math.max(0, Math.min(15, resistanceData.lowerLeft));
       const lowerRight = Math.max(0, Math.min(15, resistanceData.lowerRight));
-      
+
       // 构建2字节数据
       // 0-3位: 上肢阻力左
       // 4-7位: 上肢阻力右
       // 8-11位: 下肢阻力左
       // 12-15位: 下肢阻力右
       const value = (upperLeft << 0) | (upperRight << 4) | (lowerLeft << 8) | (lowerRight << 12);
-      
+
       const buffer = Buffer.alloc(2);
       buffer.writeUInt16LE(value);
-      
+
       return buffer.toString('base64');
     } catch (error) {
       console.error('Failed to encode resistance data:', error);
@@ -269,7 +330,7 @@ const useBluetooth = () => {
       const dataWithLeftRightPositions = calculateLeftRightPositions(totalUpperStroke, totalLowerStroke, data);
       // 计算左右侧力
       const completeData = calculateLeftRightForces(dataWithLeftRightPositions);
-      
+
       console.log('Received complete data:', completeData);
       setParsedData(completeData);
     }
@@ -277,12 +338,16 @@ const useBluetooth = () => {
 
   // 发送命令数据
   const sendData = useCallback(async (commandData: any) => {
-    if (!manager || !connectedDevice) return false;
+    if (!BLEService.manager || !connectedDevice) {
+      console.warn('Cannot send command data: no manager or connected device');
+      return false;
+    }
+    console.log(commandData);
 
     try {
       // 根据命令类型编码数据
       let encodedData: string;
-      
+
       switch (commandData.type) {
         case BLUETOOTH_COMMANDS.START_TRAINING:
           // 开始训练命令格式: [0x01, 模式(1字节), 配置数据]
@@ -295,19 +360,19 @@ const useBluetooth = () => {
           configBytes.copy(startBuffer, 2);
           encodedData = startBuffer.toString('base64');
           break;
-        
+
         case BLUETOOTH_COMMANDS.STOP_TRAINING:
           // 停止训练命令格式: [0x02]
           const stopBuffer = Buffer.from([0x02]);
           encodedData = stopBuffer.toString('base64');
           break;
-        
+
         case BLUETOOTH_COMMANDS.GET_STATUS:
           // 获取状态命令格式: [0x03]
           const statusBuffer = Buffer.from([0x03]);
           encodedData = statusBuffer.toString('base64');
           break;
-        
+
         case BLUETOOTH_COMMANDS.SEND_CONFIG:
           // 发送配置命令格式: [0x04, 配置数据]
           const configBuffer = Buffer.from(JSON.stringify(commandData.config));
@@ -316,26 +381,33 @@ const useBluetooth = () => {
           configBuffer.copy(sendConfigBuffer, 1);
           encodedData = sendConfigBuffer.toString('base64');
           break;
-        
+
         default:
           console.error('Unknown command type:', commandData.type);
           return false;
       }
-      
-      await connectedDevice.writeCharacteristicWithResponseForService(
+
+      console.log('Sending command:', commandData.type, 'with data:', encodedData);
+
+      const characteristic = await connectedDevice.writeCharacteristicWithResponseForService(
         BLUETOOTH_SERVICES.MAIN_SERVICE,
         BLUETOOTH_CHARACTERISTICS.WRITE_CHARACTERISTIC,
         encodedData
       );
+
+      console.log('Command sent successfully:', characteristic);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send command data:', error);
+      // Check if the error is a BleError and log its reason
+      if (error.hasOwnProperty('reason')) {
+        console.error('BLE Send Command Error reason:', error.reason);
+      }
       return false;
     }
-  }, [manager, connectedDevice]);
+  }, [BLEService.manager, connectedDevice]);
 
   return {
-    manager,
     isEnabled,
     connectionStatus,
     connectedDevice,

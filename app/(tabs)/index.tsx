@@ -20,6 +20,7 @@ export default function HomeScreen() {
 
   requestBluetoothPermission();
 
+
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.buttonContainer}>

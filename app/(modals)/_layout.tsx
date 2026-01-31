@@ -4,7 +4,7 @@ export default function RootLayout() {
 
   return (
     <Stack>
-      <Stack.Screen name="user" options={{presentation: 'modal', title: 'Modal', headerShown: false}}/>
+      <Stack.Screen name="user" options={{presentation: 'modal', headerShown: false}}/>
     </Stack>
   );
 }

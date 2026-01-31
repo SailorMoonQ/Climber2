@@ -61,7 +61,7 @@ export default function DynamicAssessmentScreen() {
 
   // 倒计时效果
   useEffect(() => {
-    let timer: number;
+    let timer: any;
     if (assessmentState === 'assessing' && countdown > 0) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     } else if (assessmentState === 'assessing' && countdown === 0) {
@@ -75,7 +75,7 @@ export default function DynamicAssessmentScreen() {
 
   // 训练倒计时效果
   useEffect(() => {
-    let timer: number;
+    let timer: any;
     if (assessmentState === 'training' && trainingCountdown > 0) {
       timer = setTimeout(() => setTrainingCountdown(trainingCountdown - 1), 1000);
     } else if (assessmentState === 'training' && trainingCountdown === 0) {
@@ -96,17 +96,22 @@ export default function DynamicAssessmentScreen() {
     }
 
     // 发送开始评估命令
-    const success = await sendData({
-      type: BLUETOOTH_COMMANDS.START_TRAINING,
-      mode: 'assessment',
-      config: config,
-    });
+    try {
+      const success = await sendData({
+        type: BLUETOOTH_COMMANDS.START_TRAINING,
+        mode: 'assessment',
+        config: config,
+      });
 
-    if (success) {
-      setCountdown(config.duration);
-      setAssessmentState('assessing');
-    } else {
-      Alert.alert('发送失败', '无法发送开始评估命令');
+      if (success) {
+        setCountdown(config.duration);
+        setAssessmentState('assessing');
+      } else {
+        Alert.alert('发送失败', '无法发送开始评估命令');
+      }
+    } catch (error) {
+      console.error('Error starting assessment:', error);
+      Alert.alert('错误', '启动评估时发生错误，请检查连接');
     }
   }, [manager, connectionStatus, sendData, config]);
 
@@ -123,14 +128,19 @@ export default function DynamicAssessmentScreen() {
     }
 
     // 发送停止评估命令
-    const success = await sendData({
-      type: BLUETOOTH_COMMANDS.STOP_TRAINING,
-    });
+    try {
+      const success = await sendData({
+        type: BLUETOOTH_COMMANDS.STOP_TRAINING,
+      });
 
-    if (success) {
-      setAssessmentState('ready');
-    } else {
-      Alert.alert('发送失败', '无法发送停止评估命令');
+      if (success) {
+        setAssessmentState('ready');
+      } else {
+        Alert.alert('发送失败', '无法发送停止评估命令');
+      }
+    } catch (error) {
+      console.error('Error stopping assessment:', error);
+      Alert.alert('错误', '停止评估时发生错误，请检查连接');
     }
   }, [manager, connectionStatus, sendData]);
 
@@ -169,16 +179,21 @@ export default function DynamicAssessmentScreen() {
     }
 
     // 发送开始训练命令
-    const success = await sendData({
-      type: BLUETOOTH_COMMANDS.START_TRAINING,
-      mode: 'training',
-      config: selectedTrainingParams,
-    });
+    try {
+      const success = await sendData({
+        type: BLUETOOTH_COMMANDS.START_TRAINING,
+        mode: 'training',
+        config: selectedTrainingParams,
+      });
 
-    if (success) {
-      setAssessmentState('training');
-    } else {
-      Alert.alert('发送失败', '无法发送开始训练命令');
+      if (success) {
+        setAssessmentState('training');
+      } else {
+        Alert.alert('发送失败', '无法发送开始训练命令');
+      }
+    } catch (error) {
+      console.error('Error starting training:', error);
+      Alert.alert('错误', '启动训练时发生错误，请检查连接');
     }
   }, [manager, connectionStatus, sendData, selectedTrainingParams]);
 
@@ -194,12 +209,17 @@ export default function DynamicAssessmentScreen() {
       Alert.alert('蓝牙未初始化', '请稍候重试');
       return;
     }
-    const success = await connectToDevice(device);
-    if (success) {
-      setShowDeviceList(false);
-      Alert.alert('连接成功', `已连接到设备: ${device.name}`);
-    } else {
-      Alert.alert('连接失败', '无法连接到设备');
+    try {
+      const success = await connectToDevice(device);
+      if (success) {
+        setShowDeviceList(false);
+        Alert.alert('连接成功', `已连接到设备: ${device.name}`);
+      } else {
+        Alert.alert('连接失败', '无法连接到设备');
+      }
+    } catch (error) {
+      console.error('Error connecting to device:', error);
+      Alert.alert('连接失败', '连接设备时发生错误，请重试');
     }
   }, [manager, connectToDevice]);
 
@@ -208,8 +228,12 @@ export default function DynamicAssessmentScreen() {
       // setAssessmentStarted(false);
       return;
     }
-    await disconnectFromDevice();
-    // setAssessmentStarted(false);
+    try {
+      await disconnectFromDevice();
+      // setAssessmentStarted(false);
+    } catch (error) {
+      console.error('Error disconnecting from device:', error);
+    }
   }, [manager, disconnectFromDevice]);
 
   const handleSaveConfig = useCallback(() => {

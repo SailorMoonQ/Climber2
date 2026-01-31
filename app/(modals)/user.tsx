@@ -3,14 +3,13 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { useState, useEffect } from 'react';
-import { Link, router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useState, useEffect, useLayoutEffect } from 'react';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import DatabaseService from '@/services/database-service';
 import { User } from '@/interface/user.interface';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function UserModalScreen() {
-  const isPresented = router.canGoBack();
   const colorScheme = useColorScheme();
   const tintColor = Colors[colorScheme ?? 'light'].tint;
   const params = useLocalSearchParams();
@@ -34,6 +33,10 @@ export default function UserModalScreen() {
       void loadUser();
     }
   }, [isEditMode, userId]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({title: (isEditMode ? '编辑用户信息' : '新增用户')});
+  }, [isEditMode, navigation]);
 
   const loadUser = async () => {
     try {
@@ -132,11 +135,9 @@ export default function UserModalScreen() {
         <ThemedText type="title">
           {isEditMode ? '编辑用户信息' : '新增用户'}
         </ThemedText>
-        <Link href="/user-management" asChild>
-          <Pressable style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={tintColor}/>
-          </Pressable>
-        </Link>
+        <Pressable style={styles.closeButton} onPress={() => router.back()}>
+          <Ionicons name="close" size={24} color={tintColor}/>
+        </Pressable>
       </ThemedView>
 
       <ThemedView style={styles.form}>

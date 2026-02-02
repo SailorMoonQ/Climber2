@@ -4,6 +4,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { StatusBar } from "expo-status-bar";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { UserProvider } from "@/contexts/UserContext";
+import { BluetoothProvider } from "@/context/bluetooth-context";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -12,11 +13,13 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <UserProvider>
         <OrganizationProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{headerShown: false}}/>
-            <Stack.Screen name="(modals)" options={{presentation: 'modal', title: 'Modal'}}/>
-          </Stack>
-          <StatusBar style="auto"/>
+          <BluetoothProvider>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{headerShown: false}}/>
+              <Stack.Screen name="(modals)" options={{presentation: 'modal', title: 'Modal'}}/>
+            </Stack>
+            <StatusBar style="auto"/>
+          </BluetoothProvider>
         </OrganizationProvider>
       </UserProvider>
     </ThemeProvider>

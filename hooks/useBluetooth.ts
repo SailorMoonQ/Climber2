@@ -47,13 +47,11 @@ const useBluetooth = () => {
       const subscription = BLEService.manager.onStateChange((state) => {
         setIsEnabled(state === State.PoweredOn);
         if (state === State.PoweredOn) {
-          startScan();
+          // startScan();
         } else if (state === State.PoweredOff) {
           stopScan();
         }
       }, true);
-
-
 
       return () => {
         subscription.remove();
@@ -63,14 +61,30 @@ const useBluetooth = () => {
     }
   }, []);
 
+  const stopScan = useCallback(() => {
+    console.log(!scanning);
+    if (!BLEService.manager || !scanning) return;
+    console.log('stopping');
+
+    try {
+      BLEService.manager.stopDeviceScan();
+    } catch (error) {
+      console.error('Failed to stop scan:', error);
+    } finally {
+      setScanning(false);
+      console.log(scanning);
+    }
+  }, [scanning]);
+
   const startScan = useCallback(async () => {
     if (!BLEService.manager || scanning) return;
+    console.log('scanning');
 
     setScanning(true);
     setDevices([]);
 
     try {
-      await BLEService.manager.startDeviceScan(
+      BLEService.manager.startDeviceScan(
         null, // 扫描所有服务
         null, // 没有过滤条件
         (error, device) => {
@@ -81,10 +95,11 @@ const useBluetooth = () => {
           }
 
           if (device) {
-             // 只添加具有特定前缀的设备
              // 使用配置文件中的设备名称前缀进行过滤
              if (device.name?.startsWith(DEVICE_NAME_PREFIXES.LOWER_COMPUTER) || 
-                 device.name?.startsWith(DEVICE_NAME_PREFIXES.UPPER_COMPUTER)) {
+                 device.name?.startsWith(DEVICE_NAME_PREFIXES.UPPER_COMPUTER)
+             ) {
+               console.log(device);
                setDevices((prevDevices) => {
                  const exists = prevDevices.find(d => d.id === device.id);
                  if (exists) return prevDevices;
@@ -98,7 +113,7 @@ const useBluetooth = () => {
       // 扫描10秒后自动停止
       setTimeout(() => {
         stopScan();
-      }, 10000);
+      }, 1000);
     } catch (error: any) {
       console.error('Failed to start scan:', error);
       // Check if the error is a BleError and log its reason
@@ -107,19 +122,7 @@ const useBluetooth = () => {
       }
       setScanning(false);
     }
-  }, [BLEService.manager, scanning]);
-
-  const stopScan = useCallback(() => {
-    if (!BLEService.manager || !scanning) return;
-
-    try {
-      BLEService.manager.stopDeviceScan();
-    } catch (error) {
-      console.error('Failed to stop scan:', error);
-    } finally {
-      setScanning(false);
-    }
-  }, [BLEService.manager, scanning]);
+  }, [scanning, stopScan]);
 
   const connectToDevice = useCallback(async (device: Device) => {
     if (!BLEService.manager) return false;
@@ -213,12 +216,19 @@ const useBluetooth = () => {
   }, [BLEService.manager, connectedDevice]);
 
   const sendResistanceData = useCallback(async (resistanceData: ResistanceData) => {
+    console.log(resistanceData);
     if (!BLEService.manager || !connectedDevice) {
       console.warn('Cannot send data: no manager or connected device');
       return false;
     }
 
     try {
+      // 更新当前阻力数据
+      setCurrentResistance(prev => ({
+        ...prev,
+        ...resistanceData
+      }));
+
       const encodedData = encodeResistanceData(resistanceData);
       console.log('Sending encoded data:', Buffer.from(encodedData, 'utf-8').toString('base64'));
 
@@ -317,6 +327,14 @@ const useBluetooth = () => {
   };
 
   // 存储解析后的数据
+  // 当前阻力数据状态
+  const [currentResistance, setCurrentResistance] = useState<ResistanceData>({
+    upperLeft: 0,
+    upperRight: 0,
+    lowerLeft: 0,
+    lowerRight: 0
+  });
+
   const [parsedData, setParsedData] = useState<NotificationData | null>(null);
 
   // 总行程参数（后续根据实际机械结构调整）
@@ -421,7 +439,8 @@ const useBluetooth = () => {
     sendData,
     calculateLeftRightPositions,
     calculateLeftRightForces,
-    parsedData
+    parsedData,
+    currentResistance
   };
 };
 

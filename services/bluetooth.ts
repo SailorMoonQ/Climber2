@@ -7,6 +7,7 @@ class BLEServiceInstance {
   constructor() {
     this.manager = new BleManager()
   }
+
 }
 
 export const BLEService = new BLEServiceInstance()

@@ -15,7 +15,7 @@ export const BLUETOOTH_CHARACTERISTICS = {
 // 蓝牙设备名称前缀
 export const DEVICE_NAME_PREFIXES = {
   // 上位机设备名称前缀
-  UPPER_COMPUTER: 'UpperComputer',
+  UPPER_COMPUTER: 'WT901BLE68',
   // 下位机设备名称前缀
   LOWER_COMPUTER: 'LowerComputer',
 };

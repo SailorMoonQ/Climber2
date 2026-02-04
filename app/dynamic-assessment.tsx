@@ -1,565 +1,294 @@
-import { Alert, Modal, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import useBluetooth from '../hooks/useBluetooth';
-import { BLUETOOTH_COMMANDS, BluetoothConnectionStatus } from '@/constants/bluetoothConfig';
-import { useNavigation } from "expo-router";
-import { DeviceListModal } from '@/components/ui/device-list-modal';
+import DatabaseService from '@/services/database-service';
+import { useNavigation, useRouter } from "expo-router";
+import { User } from "@/interface/user.interface";
+import { useUser } from '@/contexts/UserContext';
 
 export default function DynamicAssessmentScreen() {
-  const colorScheme = useColorScheme();
-  const tintColor = Colors[colorScheme ?? 'light'].tint;
-  const [showDeviceList, setShowDeviceList] = useState(false);
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [assessmentData, setAssessmentData] = useState<any>(null);
-  const [trainingData, setTrainingData] = useState<any>(null);
-  const [showResultModal, setShowResultModal] = useState(false);
-
-  // 评估流程状态管理
-  const [assessmentState, setAssessmentState] = useState<'ready' | 'assessing' | 'levelResult' | 'trainingConfig' | 'training' | 'trainingResult'>('ready');
-  const [countdown, setCountdown] = useState(60);
-  const [assessmentLevel, setAssessmentLevel] = useState<1 | 2 | 3 | null>(null);
-  const [selectedTrainingParams, setSelectedTrainingParams] = useState<any>(null);
-  const [trainingDuration, setTrainingDuration] = useState(300); // 默认5分钟训练
-  const [trainingCountdown, setTrainingCountdown] = useState(300);
-
-  // 评估参数
-  const [config, setConfig] = useState({
-    duration: 60, // 评估时长（秒）
-    resistanceLevel: 5, // 阻力级别
-    speed: 5, // 速度
+  const navigation = useNavigation();
+  navigation.setOptions({
+    title: '动态评估'
   });
 
-  // 不同等级对应的训练参数
-  const levelParams = {
-    1: {resistance: 3, speed: 6, duration: 300},
-    2: {resistance: 5, speed: 7, duration: 300},
-    3: {resistance: 8, speed: 8, duration: 300}
-  };
+  const colorScheme = useColorScheme();
+  const tintColor = Colors[colorScheme ?? 'light'].tint;
+  const { setSelectedUser, setCurrentUser } = useUser();
+  const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const router = useRouter();
 
-  const {
-    manager,
-    isEnabled,
-    connectionStatus,
-    connectedDevice,
-    devices,
-    scanning,
-    startScan,
-    connectToDevice,
-    disconnectFromDevice,
-    sendData
-  } = useBluetooth();
+  // 新用户表单状态
+  const [newUser, setNewUser] = useState({
+    id: '',
+    name: '',
+    gender: '男',
+    age: 30,
+    height: 170,
+    weight: 65.0
+  });
 
-  const navigation = useNavigation();
-  useLayoutEffect(() => {
-    navigation.setOptions({title: '动态评估'});
-  }, [navigation]);
-
-  // 倒计时效果
-  useEffect(() => {
-    let timer: any;
-    if (assessmentState === 'assessing' && countdown > 0) {
-      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    } else if (assessmentState === 'assessing' && countdown === 0) {
-      // 评估结束，生成随机等级（1-3）
-      const randomLevel = Math.floor(Math.random() * 3) + 1 as 1 | 2 | 3;
-      setAssessmentLevel(randomLevel);
-      setAssessmentState('levelResult');
-    }
-    return () => clearTimeout(timer);
-  }, [assessmentState, countdown]);
-
-  // 训练倒计时效果
-  useEffect(() => {
-    let timer: any;
-    if (assessmentState === 'training' && trainingCountdown > 0) {
-      timer = setTimeout(() => setTrainingCountdown(trainingCountdown - 1), 1000);
-    } else if (assessmentState === 'training' && trainingCountdown === 0) {
-      // 训练结束
-      setAssessmentState('trainingResult');
-    }
-    return () => clearTimeout(timer);
-  }, [assessmentState, trainingCountdown]);
-
-  const handleStartAssessment = useCallback(async () => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      return;
-    }
-    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
-      Alert.alert('设备未连接', '请先连接设备');
-      return;
-    }
-
-    // 发送开始评估命令
+  // 加载用户数据的函数
+  const loadUsers = useCallback(async () => {
     try {
-      const success = await sendData({
-        type: BLUETOOTH_COMMANDS.START_TRAINING,
-        mode: 'assessment',
-        config: config,
-      });
-
-      if (success) {
-        setCountdown(config.duration);
-        setAssessmentState('assessing');
-      } else {
-        Alert.alert('发送失败', '无法发送开始评估命令');
-      }
+      setLoading(true);
+      await DatabaseService.init();
+      const userList = await DatabaseService.getAllUsers();
+      setUsers(userList);
+      setFilteredUsers(userList);
     } catch (error) {
-      console.error('Error starting assessment:', error);
-      Alert.alert('错误', '启动评估时发生错误，请检查连接');
+      console.error('Failed to load data:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [manager, connectionStatus, sendData, config]);
+  }, []);
 
-  const handleStopAssessment = useCallback(async () => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      setAssessmentState('ready');
-      return;
-    }
-    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
-      Alert.alert('设备未连接', '设备已断开连接');
-      setAssessmentState('ready');
-      return;
-    }
+  // 初始化加载用户数据
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
-    // 发送停止评估命令
-    try {
-      const success = await sendData({
-        type: BLUETOOTH_COMMANDS.STOP_TRAINING,
-      });
-
-      if (success) {
-        setAssessmentState('ready');
-      } else {
-        Alert.alert('发送失败', '无法发送停止评估命令');
-      }
-    } catch (error) {
-      console.error('Error stopping assessment:', error);
-      Alert.alert('错误', '停止评估时发生错误，请检查连接');
-    }
-  }, [manager, connectionStatus, sendData]);
-
-  const handleConfirmLevel = useCallback(() => {
-    if (!assessmentLevel) return;
-
-    // 根据等级设置训练参数
-    const params = levelParams[assessmentLevel];
-    setSelectedTrainingParams(params);
-    setTrainingDuration(params.duration);
-    setTrainingCountdown(params.duration);
-
-    // 等级1直接进入训练，等级2和3可以调整参数
-    if (assessmentLevel === 1) {
-      // 直接进入训练
-      startTraining();
+  // 搜索功能
+  useEffect(() => {
+    if (searchQuery === '') {
+      setFilteredUsers(users);
     } else {
-      // 进入参数配置界面
-      setAssessmentState('trainingConfig');
+      const filtered = users.filter(user =>
+        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.id.includes(searchQuery) ||
+        user.age.toString().includes(searchQuery)
+      );
+      setFilteredUsers(filtered);
     }
-  }, [assessmentLevel]);
+  }, [searchQuery, users]);
 
-  const handleAdjustParams = useCallback(() => {
-    // 显示参数调整界面
-    setShowConfigModal(true);
-  }, []);
+  // 选择用户
+  const handleUserSelect = useCallback((user: User) => {
+    setSelectedUser(user);
+    setCurrentUser(user);
+    // 填充表单
+    setNewUser({
+      id: user.id,
+      name: user.name,
+      gender: user.gender,
+      age: user.age,
+      height: user.height,
+      weight: user.weight
+    });
+  }, [setSelectedUser, setCurrentUser]);
 
-  const startTraining = useCallback(async () => {
-    if (!manager || !selectedTrainingParams) {
-      Alert.alert('错误', '无法开始训练');
-      return;
-    }
-    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
-      Alert.alert('设备未连接', '请先连接设备');
-      return;
-    }
+  // 更新新用户表单字段
+  const updateNewUserField = (field: keyof typeof newUser, value: any) => {
+    setNewUser(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
-    // 发送开始训练命令
+  // 进入评估页面
+  const enterAssessment = async () => {
     try {
-      const success = await sendData({
-        type: BLUETOOTH_COMMANDS.START_TRAINING,
-        mode: 'training',
-        config: selectedTrainingParams,
-      });
-
-      if (success) {
-        setAssessmentState('training');
-      } else {
-        Alert.alert('发送失败', '无法发送开始训练命令');
+      // 如果是新用户，保存到数据库
+      let userToUse = { ...newUser };
+      
+      if (!newUser.id.trim()) {
+        // 生成唯一ID
+        const newId = 'A' + Math.floor(10000 + Math.random() * 90000);
+        userToUse.id = newId;
       }
+
+      // 保存用户
+      await DatabaseService.init();
+      await DatabaseService.addUser(userToUse);
+      
+      // 设置当前用户
+      setSelectedUser(userToUse);
+      setCurrentUser(userToUse);
+      
+      // 导航到评估页面
+      // @ts-ignore
+      router.push('/exercise?id=' + userToUse.id);
     } catch (error) {
-      console.error('Error starting training:', error);
-      Alert.alert('错误', '启动训练时发生错误，请检查连接');
-    }
-  }, [manager, connectionStatus, sendData, selectedTrainingParams]);
-
-  const handleCompleteTraining = useCallback(() => {
-    // 训练完成，回到初始状态
-    setAssessmentState('ready');
-    setAssessmentLevel(null);
-    setSelectedTrainingParams(null);
-  }, []);
-
-  const handleConnectDevice = useCallback(async (device: any) => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      return;
-    }
-    try {
-      const success = await connectToDevice(device);
-      if (success) {
-        setShowDeviceList(false);
-        Alert.alert('连接成功', `已连接到设备: ${device.name}`);
-      } else {
-        Alert.alert('连接失败', '无法连接到设备');
-      }
-    } catch (error) {
-      console.error('Error connecting to device:', error);
-      Alert.alert('连接失败', '连接设备时发生错误，请重试');
-    }
-  }, [manager, connectToDevice]);
-
-  const handleDisconnectDevice = useCallback(async () => {
-    if (!manager) {
-      // setAssessmentStarted(false);
-      return;
-    }
-    try {
-      await disconnectFromDevice();
-      // setAssessmentStarted(false);
-    } catch (error) {
-      console.error('Error disconnecting from device:', error);
-    }
-  }, [manager, disconnectFromDevice]);
-
-  const handleSaveConfig = useCallback(() => {
-    if (assessmentState === 'trainingConfig' && selectedTrainingParams) {
-      // 更新训练参数
-      setSelectedTrainingParams((prev: any) => ({
-        ...prev,
-        resistance: config.resistanceLevel,
-        speed: config.speed,
-        duration: config.duration
-      }));
-      setTrainingCountdown(config.duration);
-    }
-    setShowConfigModal(false);
-  }, [assessmentState, selectedTrainingParams, config]);
-
-  const renderConnectionStatus = () => {
-    switch (connectionStatus) {
-      case BluetoothConnectionStatus.CONNECTED:
-        return (
-          <ThemedView style={[styles.statusContainer, styles.connectedStatus]}>
-            <Ionicons name="bluetooth" size={16} color="white"/>
-            <ThemedText style={styles.statusText}>已连接: {connectedDevice?.name}</ThemedText>
-            <TouchableOpacity onPress={handleDisconnectDevice} style={styles.disconnectButton}>
-              <Ionicons name="close" size={16} color="white"/>
-            </TouchableOpacity>
-          </ThemedView>
-        );
-      case BluetoothConnectionStatus.CONNECTING:
-        return (
-          <ThemedView style={[styles.statusContainer, styles.connectingStatus]}>
-            <Ionicons name="bluetooth" size={16} color="white"/>
-            <ThemedText style={styles.statusText}>正在连接...</ThemedText>
-          </ThemedView>
-        );
-      case BluetoothConnectionStatus.DISCONNECTED:
-        return (
-          <ThemedView style={[styles.statusContainer, styles.disconnectedStatus]}>
-            <Ionicons name="bluetooth-outline" size={16} color="white"/>
-            <ThemedText style={styles.statusText}>未连接</ThemedText>
-            <TouchableOpacity onPress={() => setShowDeviceList(true)} style={styles.connectButton}>
-              <Ionicons name="search" size={16} color="white"/>
-            </TouchableOpacity>
-          </ThemedView>
-        );
-      default:
-        return null;
+      console.error('Failed to enter assessment:', error);
     }
   };
 
-  // 渲染评估流程的不同状态
-  const renderAssessmentFlow = () => {
-    switch (assessmentState) {
-      case 'ready':
-        return (
-          <ThemedView style={styles.flowSection}>
-            <ThemedText type="subtitle" style={styles.flowTitle}>准备开始动态评估</ThemedText>
-            <ThemedView style={styles.countdownCircle}>
-              <ThemedText type="title" style={styles.countdownText}>准备</ThemedText>
-            </ThemedView>
-            <TouchableOpacity
-              style={[styles.controlButton, styles.startButton]}
-              onPress={handleStartAssessment}
-            >
-              <Ionicons name="play" size={24} color="white"/>
-              <ThemedText style={styles.controlButtonText}>开始评估</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        );
-
-      case 'assessing':
-        return (
-          <ThemedView style={styles.flowSection}>
-            <ThemedText type="subtitle" style={styles.flowTitle}>动态评估进行中</ThemedText>
-            <ThemedView style={styles.countdownCircle}>
-              <ThemedText type="title" style={styles.countdownText}>{countdown}</ThemedText>
-            </ThemedView>
-            <ThemedText style={styles.countdownLabel}>秒</ThemedText>
-            <TouchableOpacity
-              style={[styles.controlButton, styles.stopButton]}
-              onPress={handleStopAssessment}
-            >
-              <Ionicons name="stop" size={24} color="white"/>
-              <ThemedText style={styles.controlButtonText}>停止评估</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        );
-
-      case 'levelResult':
-        return (
-          <ThemedView style={styles.flowSection}>
-            <ThemedText type="subtitle" style={styles.flowTitle}>评估完成</ThemedText>
-            <ThemedView style={styles.levelCircle}>
-              <ThemedText type="title" style={styles.levelText}>{assessmentLevel}</ThemedText>
-            </ThemedView>
-            <ThemedText style={styles.levelLabel}>评估等级</ThemedText>
-            <TouchableOpacity
-              style={[styles.controlButton, styles.confirmButton]}
-              onPress={handleConfirmLevel}
-            >
-              <ThemedText style={styles.controlButtonText}>确认</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        );
-
-      case 'trainingConfig':
-        return (
-          <ThemedView style={styles.flowSection}>
-            <ThemedText type="subtitle" style={styles.flowTitle}>训练参数</ThemedText>
-            <ThemedView style={styles.paramsContainer}>
-              <ThemedView style={styles.paramItem}>
-                <ThemedText style={styles.paramLabel}>阻力</ThemedText>
-                <ThemedText style={styles.paramValue}>{selectedTrainingParams?.resistance}</ThemedText>
-              </ThemedView>
-              <ThemedView style={styles.paramItem}>
-                <ThemedText style={styles.paramLabel}>速度</ThemedText>
-                <ThemedText style={styles.paramValue}>{selectedTrainingParams?.speed}</ThemedText>
-              </ThemedView>
-              <ThemedView style={styles.paramItem}>
-                <ThemedText style={styles.paramLabel}>时长</ThemedText>
-                <ThemedText style={styles.paramValue}>{selectedTrainingParams?.duration / 60}分钟</ThemedText>
-              </ThemedView>
-            </ThemedView>
-            {assessmentLevel !== 1 && (
-              <TouchableOpacity
-                style={[styles.controlButton, styles.adjustButton]}
-                onPress={handleAdjustParams}
-              >
-                <Ionicons name="settings-outline" size={20} color="white"/>
-                <ThemedText style={styles.controlButtonText}>调整参数</ThemedText>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[styles.controlButton, styles.startButton]}
-              onPress={startTraining}
-            >
-              <Ionicons name="play" size={24} color="white"/>
-              <ThemedText style={styles.controlButtonText}>开始训练</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        );
-
-      case 'training':
-        return (
-          <ThemedView style={styles.flowSection}>
-            <ThemedText type="subtitle" style={styles.flowTitle}>训练进行中</ThemedText>
-            <ThemedView style={styles.countdownCircle}>
-              <ThemedText type="title" style={styles.countdownText}>
-                {Math.floor(trainingCountdown / 60)}:{(trainingCountdown % 60).toString().padStart(2, '0')}
-              </ThemedText>
-            </ThemedView>
-            <ThemedText style={styles.countdownLabel}>剩余时间</ThemedText>
-          </ThemedView>
-        );
-
-      case 'trainingResult':
-        return (
-          <ThemedView style={styles.flowSection}>
-            <ThemedView style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={80} color="#4CAF50"/>
-            </ThemedView>
-            <ThemedText type="subtitle" style={styles.flowTitle}>训练完成!</ThemedText>
-            <ThemedText style={styles.resultText}>恭喜你完成了本次训练</ThemedText>
-            <TouchableOpacity
-              style={[styles.controlButton, styles.completeButton]}
-              onPress={handleCompleteTraining}
-            >
-              <ThemedText style={styles.controlButtonText}>完成</ThemedText>
-            </TouchableOpacity>
-          </ThemedView>
-        );
-
-      default:
-        return null;
+  // 快速开始
+  const quickStart = async () => {
+    // 使用默认用户信息快速进入评估
+    try {
+      // 生成临时用户ID
+      const tempId = 'TEMP' + Date.now().toString().slice(-5);
+      const tempUser: User = {
+        id: tempId,
+        name: '临时用户',
+        gender: newUser.gender,
+        age: newUser.age,
+        height: newUser.height,
+        weight: newUser.weight
+      };
+      
+      // 设置当前用户
+      setSelectedUser(tempUser);
+      setCurrentUser(tempUser);
+      
+      // 导航到评估页面
+      // @ts-ignore
+      router.push('/exercise?id=' + tempUser.id);
+    } catch (error) {
+      console.error('Failed to quick start:', error);
     }
   };
+
+  // 渲染用户列表项
+  const renderUserItem = ({ item }: { item: User }) => (
+    <TouchableOpacity
+      style={styles.userItem}
+      onPress={() => handleUserSelect(item)}
+    >
+      <ThemedText style={styles.userId}>{item.id}</ThemedText>
+      <ThemedText style={styles.userName}>{item.name}</ThemedText>
+      <ThemedText style={styles.userGender}>{item.gender}</ThemedText>
+      <ThemedText style={styles.userAge}>{item.age}岁</ThemedText>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={tintColor} />
+        <ThemedText style={styles.loadingText}>加载中...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">动态评估</ThemedText>
+      {/* 顶部搜索栏 */}
+      <ThemedView style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color={tintColor} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="输入姓名/ID/年龄搜索"
+          placeholderTextColor={Colors[colorScheme ?? 'light'].text}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </ThemedView>
 
-      {/* 蓝牙连接状态 */}
-      {renderConnectionStatus()}
+      {/* 用户列表 */}
+      <ThemedView style={styles.userListContainer}>
+        <FlatList
+          data={filteredUsers}
+          renderItem={renderUserItem}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.userList}
+        />
+      </ThemedView>
 
-      {/* 评估参数设置 - 只在准备状态显示 */}
-      {assessmentState === 'ready' && (
-        <ThemedView style={styles.configSection}>
-          <ThemedText type="subtitle">评估参数</ThemedText>
-          <ThemedView style={styles.configRow}>
-            <ThemedText>时长: {config.duration}秒</ThemedText>
-            <ThemedText>阻力: {config.resistanceLevel}</ThemedText>
-            <ThemedText>速度: {config.speed}</ThemedText>
-          </ThemedView>
-          <TouchableOpacity
-            style={styles.configButton}
-            onPress={() => setShowConfigModal(true)}
-          >
-            <Ionicons name="settings-outline" size={20} color={tintColor}/>
-            <ThemedText style={styles.configButtonText}>调整参数</ThemedText>
-          </TouchableOpacity>
+      {/* 新建用户表单 */}
+      <ScrollView style={styles.formContainer}>
+        <ThemedView style={styles.formGroup}>
+          <ThemedText style={styles.formLabel}>ID</ThemedText>
+          <TextInput
+            style={styles.textInput}
+            value={newUser.id}
+            onChangeText={(text) => updateNewUserField('id', text)}
+            placeholder="输入用户ID"
+          />
         </ThemedView>
-      )}
 
-      {/* 评估流程 */}
-      {renderAssessmentFlow()}
-
-      {/* 实时数据展示 */}
-      {(assessmentState === 'assessing' || assessmentState === 'training') && assessmentData && (
-        <ThemedView style={styles.dataSection}>
-          <ThemedText type="subtitle">实时数据</ThemedText>
-          <ThemedView style={styles.dataItem}>
-            <ThemedText>当前速度: {assessmentData.speed}</ThemedText>
-            <ThemedText>当前阻力: {assessmentData.resistance}</ThemedText>
-          </ThemedView>
-          <ThemedView style={styles.dataItem}>
-            <ThemedText>心率: {assessmentData.heartRate}</ThemedText>
-            <ThemedText>功率: {assessmentData.power}</ThemedText>
-          </ThemedView>
+        <ThemedView style={styles.formGroup}>
+          <ThemedText style={styles.formLabel}>姓名</ThemedText>
+          <TextInput
+            style={styles.textInput}
+            value={newUser.name}
+            onChangeText={(text) => updateNewUserField('name', text)}
+            placeholder="输入姓名"
+          />
         </ThemedView>
-      )}
 
-      {/* 设备列表模态框 */}
-      <DeviceListModal
-        visible={showDeviceList}
-        devices={devices}
-        scanning={scanning}
-        onRefresh={startScan}
-        onSelectDevice={handleConnectDevice}
-        onClose={() => setShowDeviceList(false)}
-        tintColor={tintColor}
-      />
-
-      {/* 参数设置模态框 */}
-      <Modal
-        visible={showConfigModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowConfigModal(false)}
-      >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>
-              {assessmentState === 'trainingConfig' ? '调整训练参数' : '调整评估参数'}
-            </ThemedText>
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>{assessmentState === 'trainingConfig' ? '训练时长 (秒):' : '评估时长 (秒):'}</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={String(config.duration)}
-                onChangeText={(text) => setConfig(prev => ({...prev, duration: parseInt(text) || 60}))}
-                keyboardType="numeric"
-              />
-            </ThemedView>
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>阻力级别 (1-10):</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={String(config.resistanceLevel)}
-                onChangeText={(text) => setConfig(prev => ({
-                  ...prev,
-                  resistanceLevel: Math.max(1, Math.min(10, parseInt(text) || 5))
-                }))}
-                keyboardType="numeric"
-              />
-            </ThemedView>
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>速度 (1-10):</ThemedText>
-              <TextInput
-                style={styles.input}
-                value={String(config.speed)}
-                onChangeText={(text) => setConfig(prev => ({
-                  ...prev,
-                  speed: Math.max(1, Math.min(10, parseInt(text) || 5))
-                }))}
-                keyboardType="numeric"
-              />
-            </ThemedView>
-            <ThemedView style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => setShowConfigModal(false)}
-              >
-                <ThemedText>取消</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary]}
-                onPress={handleSaveConfig}
-              >
-                <ThemedText style={styles.modalButtonPrimaryText}>确定</ThemedText>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
-        </ThemedView>
-      </Modal>
-
-      {/* 评估完成后的详细结果模态框 */}
-      <Modal
-        visible={showResultModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowResultModal(false)}
-      >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>评估结果</ThemedText>
-            <ThemedView style={styles.resultChartContainer}>
-              {/* 这里可以添加实际的图表组件，暂时用模拟数据 */}
-              <ThemedView style={styles.chartPlaceholder}>
-                <ThemedText>评估结果图表</ThemedText>
-              </ThemedView>
-            </ThemedView>
-            <ThemedView style={styles.resultDetails}>
-              <ThemedText>平均心率: 120 BPM</ThemedText>
-              <ThemedText>平均功率: 250 W</ThemedText>
-              <ThemedText>总距离: 5.2 km</ThemedText>
-              <ThemedText>能量消耗: 320 kcal</ThemedText>
-            </ThemedView>
+        <ThemedView style={styles.formGroup}>
+          <ThemedText style={styles.formLabel}>性别</ThemedText>
+          <ThemedView style={styles.genderButtons}>
             <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowResultModal(false)}
+              style={[styles.genderButton, newUser.gender === '男' && styles.genderButtonActive]}
+              onPress={() => updateNewUserField('gender', '男')}
             >
-              <ThemedText style={styles.closeButtonText}>关闭</ThemedText>
+              <Ionicons name="male" size={24} color={newUser.gender === '男' ? '#fff' : tintColor} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.genderButton, newUser.gender === '女' && styles.genderButtonActive]}
+              onPress={() => updateNewUserField('gender', '女')}
+            >
+              <Ionicons name="female" size={24} color={newUser.gender === '女' ? '#fff' : tintColor} />
             </TouchableOpacity>
           </ThemedView>
         </ThemedView>
-      </Modal>
+
+        <ThemedView style={styles.formGroup}>
+          <ThemedText style={styles.formLabel}>年龄</ThemedText>
+          <TextInput
+            style={styles.textInput}
+            value={newUser.age.toString()}
+            onChangeText={(text) => updateNewUserField('age', parseInt(text) || 0)}
+            keyboardType="numeric"
+            placeholder="输入年龄"
+          />
+        </ThemedView>
+
+        <ThemedView style={styles.formGroup}>
+          <ThemedText style={styles.formLabel}>身高</ThemedText>
+          <ThemedView style={styles.inputWithUnit}>
+            <TextInput
+              style={styles.textInput}
+              value={newUser.height.toString()}
+              onChangeText={(text) => updateNewUserField('height', parseFloat(text) || 0)}
+              keyboardType="numeric"
+              placeholder="输入身高"
+            />
+            <ThemedText style={styles.unitText}>cm</ThemedText>
+          </ThemedView>
+        </ThemedView>
+
+        <ThemedView style={styles.formGroup}>
+          <ThemedText style={styles.formLabel}>体重</ThemedText>
+          <ThemedView style={styles.inputWithUnit}>
+            <TextInput
+              style={styles.textInput}
+              value={newUser.weight.toString()}
+              onChangeText={(text) => updateNewUserField('weight', parseFloat(text) || 0)}
+              keyboardType="numeric"
+              placeholder="输入体重"
+            />
+            <ThemedText style={styles.unitText}>kg</ThemedText>
+          </ThemedView>
+        </ThemedView>
+
+        {/* 对号按钮 */}
+        <TouchableOpacity
+          style={styles.checkButton}
+          onPress={enterAssessment}
+        >
+          <Ionicons name="checkmark" size={32} color="#fff" />
+        </TouchableOpacity>
+
+        {/* 快速开始按钮 */}
+        <TouchableOpacity
+          style={styles.quickStartButton}
+          onPress={quickStart}
+        >
+          <ThemedText style={styles.quickStartText}>快速开始</ThemedText>
+        </TouchableOpacity>
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -569,276 +298,136 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 20,
-  },
-  connectedStatus: {
-    backgroundColor: '#4CAF50',
-  },
-  connectingStatus: {
-    backgroundColor: '#2196F3',
-  },
-  disconnectedStatus: {
-    backgroundColor: '#9E9E9E',
-  },
-  statusText: {
-    color: 'white',
-    marginLeft: 5,
+  loadingContainer: {
     flex: 1,
-  },
-  connectButton: {
-    marginLeft: 10,
-    padding: 5,
-  },
-  disconnectButton: {
-    marginLeft: 10,
-    padding: 5,
-  },
-  configSection: {
-    backgroundColor: '#f0f0f0',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-  },
-  configRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 10,
-  },
-  configButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 10,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 5,
-  },
-  configButtonText: {
-    marginLeft: 5,
-    fontWeight: '600',
-  },
-  flowSection: {
-    alignItems: 'center',
-    marginBottom: 20,
-    padding: 20,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-  },
-  flowTitle: {
-    marginBottom: 20,
-  },
-  countdownCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#2196F3',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
   },
-  countdownText: {
-    color: 'white',
-  },
-  countdownLabel: {
-    fontSize: 18,
-    marginBottom: 20,
-    opacity: 0.7,
-  },
-  levelCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#FF9800',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  levelText: {
-    color: 'white',
-    fontSize: 80,
-  },
-  levelLabel: {
-    fontSize: 18,
-    marginBottom: 20,
-    opacity: 0.7,
-  },
-  paramsContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  paramItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 15,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  paramLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  paramValue: {
+  loadingText: {
+    marginTop: 10,
     fontSize: 16,
   },
-  controlButton: {
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
+    backgroundColor: '#f0f0f0',
     borderRadius: 10,
-    minWidth: 200,
+    paddingHorizontal: 10,
+    height: 40,
     marginBottom: 10,
   },
-  startButton: {
-    backgroundColor: '#4CAF50',
-  },
-  stopButton: {
-    backgroundColor: '#F44336',
-  },
-  confirmButton: {
-    backgroundColor: '#2196F3',
-  },
-  adjustButton: {
-    backgroundColor: '#FF9800',
-  },
-  completeButton: {
-    backgroundColor: '#4CAF50',
-  },
-  controlButtonText: {
-    color: 'white',
-    marginLeft: 10,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  dataSection: {
-    backgroundColor: '#f0f0f0',
-    padding: 15,
-    borderRadius: 10,
-  },
-  dataItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 10,
-  },
-  successIcon: {
-    marginBottom: 20,
-  },
-  resultText: {
-    fontSize: 16,
-    marginBottom: 20,
-    opacity: 0.7,
-  },
-  resultChartContainer: {
-    width: '100%',
-    height: 200,
-    marginBottom: 20,
-  },
-  chartPlaceholder: {
-    width: '100%',
+  searchInput: {
+    flex: 1,
     height: '100%',
-    backgroundColor: '#e0e0e0',
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  resultDetails: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    width: '80%',
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  deviceList: {
-    maxHeight: 300,
-    marginBottom: 20,
-  },
-  deviceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  deviceInfo: {
+    fontSize: 16,
+    color: '#000',
     marginLeft: 10,
-    flex: 1,
   },
-  deviceName: {
-    fontWeight: '600',
-  },
-  deviceId: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  noDevicesText: {
-    textAlign: 'center',
-    padding: 20,
-    opacity: 0.7,
-  },
-  closeButton: {
+  userListContainer: {
+    height: 150,
     backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+    marginBottom: 20,
     padding: 10,
-    borderRadius: 5,
-    alignItems: 'center',
   },
-  closeButtonText: {
-    fontWeight: '600',
+  userList: {
+    paddingBottom: 10,
   },
-  inputGroup: {
-    marginBottom: 15,
-  },
-  input: {
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 5,
-  },
-  modalButtons: {
+  userItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  modalButton: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 5,
     alignItems: 'center',
-    marginHorizontal: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 5,
   },
-  modalButtonPrimary: {
-    backgroundColor: '#2196F3',
+  userId: {
+    overflow: "hidden",
+    width: 80,
+    fontSize: 14,
+    fontWeight: '600',
+    textOverflow: 'ellipsis',
   },
-  modalButtonPrimaryText: {
-    color: 'white',
+  userName: {
+    flex: 1,
+    fontSize: 14,
+    marginLeft: 10,
+  },
+  userGender: {
+    width: 40,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  userAge: {
+    width: 60,
+    fontSize: 14,
+    textAlign: 'right',
+  },
+  formContainer: {
+    flex: 1,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    fontSize: 16,
+    marginBottom: 5,
+    fontWeight: '600',
+  },
+  textInput: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 16,
+  },
+  genderButtons: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  genderButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  genderButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  inputWithUnit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  unitText: {
+    fontSize: 16,
+    marginLeft: 10,
+    color: '#666',
+  },
+  checkButton: {
+    alignSelf: 'center',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  quickStartButton: {
+    alignSelf: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+  },
+  quickStartText: {
+    fontSize: 16,
     fontWeight: '600',
   },
 });

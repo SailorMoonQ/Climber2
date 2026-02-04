@@ -30,7 +30,10 @@ export default function TabLayout() {
         </View>
       ),
     }}>
-      <Stack.Screen name="index" options={{title: organizationName}}/>
+      <Stack.Screen name="index" options={{
+        title: organizationName,
+        headerTitleAlign: 'center'
+      }}/>
     </Stack>
   );
 }

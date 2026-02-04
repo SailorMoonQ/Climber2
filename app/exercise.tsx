@@ -3,10 +3,9 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { ResistanceControl } from '@/components/ui/resistance-control';
-import { Distance } from '@/components/training-data/distance'; // 导入Distance组件
-import { HeartRate } from '@/components/training-data/heart-rate'; // 导入HeartRate组件
+import { Distance } from '@/components/training-data/distance';
+import { HeartRate } from '@/components/training-data/heart-rate';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import useBluetooth from '@/hooks/useBluetooth';
 import DatabaseService from '@/services/database-service';

@@ -9,6 +9,7 @@ import {
 } from '@/constants/bluetoothConfig';
 import { Buffer } from 'buffer';
 import { BLEService } from "@/services/bluetooth";
+import { saveBluetoothDevice, getBluetoothDevice } from "@/utils/database";
 
 // 定义阻力数据结构
 export interface ResistanceData {
@@ -44,10 +45,30 @@ const useBluetooth = () => {
 
   useEffect(() => {
     try {
-      const subscription = BLEService.manager.onStateChange((state) => {
+      const subscription = BLEService.manager.onStateChange(async (state) => {
         setIsEnabled(state === State.PoweredOn);
         if (state === State.PoweredOn) {
-          // startScan();
+          // 尝试连接上次连接的设备
+          const lastDevice = await getBluetoothDevice();
+          if (lastDevice) {
+            console.log('Trying to connect to last device:', lastDevice);
+            try {
+              // 尝试直接连接设备
+              const device = await BLEService.manager.connectToDevice(lastDevice.deviceId, {timeout: 5000});
+              await device.discoverAllServicesAndCharacteristics();
+              setConnectedDevice(device);
+              setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
+              console.log('Successfully connected to last device:', lastDevice);
+              return;
+            } catch (error) {
+              console.error('Failed to connect to last device:', error);
+              // 连接失败，开始扫描
+              startScan();
+            }
+          } else {
+            // 没有上次连接的设备，开始扫描
+            startScan();
+          }
         } else if (state === State.PoweredOff) {
           stopScan();
         }
@@ -62,17 +83,12 @@ const useBluetooth = () => {
   }, []);
 
   const stopScan = useCallback(() => {
-    console.log(!scanning);
-    if (!BLEService.manager || !scanning) return;
-    console.log('stopping');
-
     try {
       BLEService.manager.stopDeviceScan();
     } catch (error) {
       console.error('Failed to stop scan:', error);
     } finally {
       setScanning(false);
-      console.log(scanning);
     }
   }, [scanning]);
 
@@ -95,25 +111,37 @@ const useBluetooth = () => {
           }
 
           if (device) {
-             // 使用配置文件中的设备名称前缀进行过滤
-             if (device.name?.startsWith(DEVICE_NAME_PREFIXES.LOWER_COMPUTER) || 
-                 device.name?.startsWith(DEVICE_NAME_PREFIXES.UPPER_COMPUTER)
-             ) {
-               console.log(device);
-               setDevices((prevDevices) => {
-                 const exists = prevDevices.find(d => d.id === device.id);
-                 if (exists) return prevDevices;
-                 return [...prevDevices, device];
-               });
-             }
-           }
+            // 使用配置文件中的设备名称前缀进行过滤
+            if (device.name?.startsWith(DEVICE_NAME_PREFIXES.LOWER_COMPUTER) ||
+              device.name?.startsWith(DEVICE_NAME_PREFIXES.UPPER_COMPUTER)
+            ) {
+              console.log(device);
+              setDevices((prevDevices) => {
+                const exists = prevDevices.find(d => d.id === device.id);
+                if (exists) return prevDevices;
+                return [...prevDevices, device];
+              });
+
+              // 找到设备后停止扫描并尝试连接
+              stopScan();
+
+              // 连接到找到的设备
+              connectToDevice(device).then(success => {
+                console.log(success);
+                // 如果连接失败，且当前没有连接其他设备，则重新开始扫描
+                if (!success && !connectedDevice) {
+                  setTimeout(() => {
+                    // 确保当前没有正在进行的扫描
+                    if (!scanning && isEnabled) {
+                      startScan();
+                    }
+                  }, 2000); // 2秒后重新开始扫描
+                }
+              });
+            }
+          }
         }
       );
-
-      // 扫描10秒后自动停止
-      setTimeout(() => {
-        stopScan();
-      }, 1000);
     } catch (error: any) {
       console.error('Failed to start scan:', error);
       // Check if the error is a BleError and log its reason
@@ -122,7 +150,7 @@ const useBluetooth = () => {
       }
       setScanning(false);
     }
-  }, [scanning, stopScan]);
+  }, []);
 
   const connectToDevice = useCallback(async (device: Device) => {
     if (!BLEService.manager) return false;
@@ -141,7 +169,7 @@ const useBluetooth = () => {
       if (connectedDevice) {
         // 直接执行断开连接操作，避免循环依赖
         setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
-        
+
         try {
           if (connectedDevice) {
             await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
@@ -149,12 +177,12 @@ const useBluetooth = () => {
         } catch (disconnectError) {
           console.error('Error during disconnection:', disconnectError);
         }
-        
+
         setConnectedDevice(null);
         setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
       }
 
-      const newConnectedDevice = await BLEService.manager.connectToDevice(device.id, { timeout: 10000 }); // 10秒超时
+      const newConnectedDevice = await BLEService.manager.connectToDevice(device.id, {timeout: 10000}); // 10秒超时
 
       // Discover services and characteristics
       await newConnectedDevice.discoverAllServicesAndCharacteristics();
@@ -162,27 +190,39 @@ const useBluetooth = () => {
       setConnectedDevice(newConnectedDevice);
       setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
 
-      // Set up notifications
-      newConnectedDevice.monitorCharacteristicForService(
-        BLUETOOTH_SERVICES.MAIN_SERVICE,
-        BLUETOOTH_CHARACTERISTICS.NOTIFY_CHARACTERISTIC,
-        (error, characteristic) => {
-          if (error) {
-            console.error('Monitor error:', error);
-            // Check if the error is a BleError and log its reason
-            if (error.hasOwnProperty('reason')) {
-              console.error('BLE Monitor Error reason:', error.reason);
-            }
-            return;
-          }
+      // 保存设备信息到数据库
+      if (newConnectedDevice.id && newConnectedDevice.name) {
+        await saveBluetoothDevice(newConnectedDevice.id, newConnectedDevice.name);
+      }
 
-          if (characteristic?.value) {
-            // 处理接收到的数据
-            const data = parseBluetoothNotificationData(characteristic.value);
-            handleReceivedData(data);
+      // Set up notifications with error handling
+      try {
+        newConnectedDevice.monitorCharacteristicForService(
+          BLUETOOTH_SERVICES.MAIN_SERVICE,
+          BLUETOOTH_CHARACTERISTICS.NOTIFY_CHARACTERISTIC,
+          (error, characteristic) => {
+            console.log(characteristic);
+            if (error) {
+              console.error('Monitor error:', error);
+              // Check if the error is a BleError and log its reason
+              if (error.hasOwnProperty('reason')) {
+                console.error('BLE Monitor Error reason:', error.reason);
+              }
+              return;
+            }
+
+            console.log(characteristic);
+            if (characteristic?.value) {
+              // 处理接收到的数据
+              const data = parseBluetoothNotificationData(characteristic.value);
+              handleReceivedData(data);
+            }
           }
-        }
-      );
+        );
+      } catch (monitorError: any) {
+        console.error('Failed to set up characteristic monitoring:', monitorError);
+        // 即使监测设置失败，也要认为连接成功，因为主要连接已经建立
+      }
 
       return true;
     } catch (error: any) {
@@ -194,7 +234,7 @@ const useBluetooth = () => {
       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
       return false;
     }
-  }, [BLEService.manager, connectedDevice]);
+  }, [BLEService.manager, connectedDevice, setConnectedDevice, setConnectionStatus]);
 
   const disconnectFromDevice = useCallback(async () => {
     if (!BLEService.manager || !connectedDevice) return;

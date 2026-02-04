@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Link } from 'expo-router';
-import { requestBluetoothPermission } from "@/hooks/bluetoothPermission";
+import { Image } from "expo-image";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -17,8 +17,6 @@ export default function HomeScreen() {
     { title: '情景游戏', icon: 'game-controller-outline', href: '/scenario-game' },
     { title: '用户管理/运动数据', icon: 'people-outline', href: '/user-management' },
   ];
-
-  requestBluetoothPermission();
 
 
   return (
@@ -37,8 +35,10 @@ export default function HomeScreen() {
         ))}
       </ThemedView>
       <ThemedView style={styles.logoContainer}>
-        {/*  LOGO */}
-        <ThemedText>LOGO</ThemedText>
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={{width: '100%', height: '100%'}}
+          contentFit="contain" />
       </ThemedView>
     </ThemedView>
   );
@@ -79,7 +79,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   logoContainer: {
-    marginTop: 100,
+    position: 'absolute',
+    bottom: 10,
+    left: '50%',
+    transform: [{ translateX: -140 }],
+    width: 280,
+    height: 100,
   },
   logo: {
     width: 200,

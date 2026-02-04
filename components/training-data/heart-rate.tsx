@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
-import useBluetooth from '@/hooks/useBluetooth';
 
 // 心率组件接口
 export interface HeartRateProps {
@@ -17,15 +16,18 @@ export const HeartRate: React.FC<HeartRateProps> = ({
   targetHeartRateRange,
   style,
 }) => {
-  const { parsedData } = useBluetooth();
   const [heartRate, setHeartRate] = useState<number>(0);
 
-  // 监听蓝牙数据变化，提取心率信息
+  // 使用模拟心率数据
   useEffect(() => {
-    if (parsedData && parsedData.heartRate !== undefined) {
-      setHeartRate(parsedData.heartRate);
-    }
-  }, [parsedData]);
+    const interval = setInterval(() => {
+      // 生成模拟心率数据（80-120 bpm）
+      const mockHeartRate = Math.floor(Math.random() * 40) + 80;
+      setHeartRate(mockHeartRate);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // 添加默认值和错误处理
   const effectiveMaxHeartRate = maxHeartRate ?? 220; // 默认最大心率为220

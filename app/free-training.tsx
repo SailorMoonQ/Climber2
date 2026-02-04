@@ -1,4 +1,4 @@
-import { Alert, Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,10 +6,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import useBluetooth from '../hooks/useBluetooth';
 import { useUser } from '@/contexts/UserContext';
 import DatabaseService from '@/services/database-service';
-import { BLUETOOTH_COMMANDS, BluetoothConnectionStatus } from '@/constants/bluetoothConfig';
 import { TargetSettingModal, TargetSettingModalProps } from '@/components/ui/target-setting-modal';
 import { StartStopControls } from '@/components/ui/start-stop-controls';
 import { Calories } from "@/components/training-data/calories";
@@ -17,7 +15,6 @@ import { ExerciseDuration } from "@/components/training-data/exercise-duration";
 import { Speed } from "@/components/training-data/speed";
 import { Posture } from "@/components/training-data/posture";
 import { ResistanceControl } from "@/components/ui/resistance-control";
-import { DeviceListModal } from '@/components/ui/device-list-modal';
 import { HeartRate } from "@/components/training-data/heart-rate";
 import { ForceBar } from "@/components/force-bar";
 import { Distance } from "@/components/training-data/distance";
@@ -48,7 +45,6 @@ export default function FreeTrainingScreen() {
 
   const [trainingStarted, setTrainingStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [showDeviceList, setShowDeviceList] = useState(false);
   const [showControlPanel, setShowControlPanel] = useState(false);
   
   // 训练参数
@@ -83,19 +79,8 @@ export default function FreeTrainingScreen() {
   const [leftLegForce, setLeftLegForce] = useState(18.6); // 左腿力（N）
   const [rightLegForce, setRightLegForce] = useState(0); // 右腿力（N）
 
-  const {
-    manager,
-    isEnabled,
-    connectionStatus,
-    connectedDevice,
-    devices,
-    scanning,
-    startScan,
-    connectToDevice,
-    disconnectFromDevice,
-    sendData,
-    parsedData
-  } = useBluetooth();
+  // 训练控制状态
+  const [currentParams, setCurrentParams] = useState(paramsState);
   
   // 设置动态标题
   const navigation = useNavigation();
@@ -119,55 +104,11 @@ export default function FreeTrainingScreen() {
     return () => clearInterval(interval);
   }, [trainingStarted, isPaused]);
   
-  // 处理蓝牙数据
-  useEffect(() => {
-    if (parsedData) {
-      setLeftHandForce(parsedData.upperLeftForce || 0);
-      setRightHandForce(parsedData.upperRightForce || 0);
-      setLeftLegForce(parsedData.lowerLeftForce || 0);
-      setRightLegForce(parsedData.lowerRightForce || 0);
-    }
-  }, [parsedData]);
+  const handleStartTraining = useCallback(() => {
+    setTrainingStarted(true);
+  }, []);
 
-  const handleStartTraining = useCallback(async () => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      return;
-    }
-    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
-      Alert.alert('设备未连接', '请先连接设备');
-      return;
-    }
-
-    // 发送开始训练命令
-    const success = await sendData({
-      type: BLUETOOTH_COMMANDS.START_TRAINING,
-      mode: 'free',
-      params: {
-        ...params,
-        upperResistance,
-        lowerResistance,
-        speed: params.speed
-      },
-    });
-
-    if (success) {
-      setTrainingStarted(true);
-    } else {
-      Alert.alert('发送失败', '无法发送开始训练命令');
-    }
-  }, [manager, connectionStatus, sendData, params]);
-
-  const handlePauseResumeTraining = useCallback(async () => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      return;
-    }
-    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
-      Alert.alert('设备未连接', '请先连接设备');
-      return;
-    }
-
+  const handlePauseResumeTraining = useCallback(() => {
     if (isPaused) {
       // 恢复训练
       setIsPaused(false);
@@ -175,117 +116,18 @@ export default function FreeTrainingScreen() {
       // 暂停训练
       setIsPaused(true);
     }
-  }, [manager, connectionStatus, isPaused]);
+  }, [isPaused]);
 
-  const handleStopTraining = useCallback(async () => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      setTrainingStarted(false);
-      setIsPaused(false);
-      return;
-    }
-    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
-      Alert.alert('设备未连接', '设备已断开连接');
-      setTrainingStarted(false);
-      setIsPaused(false);
-      return;
-    }
-
-    // 发送停止训练命令
-    const success = await sendData({
-      type: BLUETOOTH_COMMANDS.STOP_TRAINING,
-    });
-
-    if (success) {
-      setTrainingStarted(false);
-      setIsPaused(false);
-    } else {
-      Alert.alert('发送失败', '无法发送停止训练命令');
-    }
-  }, [manager, connectionStatus, sendData, isPaused]);
-
-  const handleUpdateParams = useCallback(async () => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      return;
-    }
-    if (connectionStatus !== BluetoothConnectionStatus.CONNECTED) {
-      Alert.alert('设备未连接', '请先连接设备');
-      return;
-    }
-
-    // 发送参数更新命令
-    const success = await sendData({
-      type: BLUETOOTH_COMMANDS.SEND_CONFIG,
-      params: {
-        ...params
-      },
-    });
-
-    if (success) {
-      setShowControlPanel(false);
-      Alert.alert('更新成功', '训练参数已更新');
-    } else {
-      Alert.alert('发送失败', '无法发送参数更新命令');
-    }
-  }, [manager, connectionStatus, sendData, params]);
-
-  const handleConnectDevice = useCallback(async (device: any) => {
-    if (!manager) {
-      Alert.alert('蓝牙未初始化', '请稍候重试');
-      return;
-    }
-    const success = await connectToDevice(device);
-    if (success) {
-      setShowDeviceList(false);
-      Alert.alert('连接成功', `已连接到设备: ${device.name}`);
-    } else {
-      Alert.alert('连接失败', '无法连接到设备');
-    }
-  }, [manager, connectToDevice]);
-
-  const handleDisconnectDevice = useCallback(async () => {
-    if (!manager) {
-      setTrainingStarted(false);
-      return;
-    }
-    await disconnectFromDevice();
+  const handleStopTraining = useCallback(() => {
     setTrainingStarted(false);
-  }, [manager, disconnectFromDevice]);
+    setIsPaused(false);
+  }, []);
 
-  const renderConnectionStatus = () => {
-    switch (connectionStatus) {
-      case BluetoothConnectionStatus.CONNECTED:
-        return (
-          <ThemedView style={[styles.statusContainer, styles.connectedStatus]}>
-            <Ionicons name="bluetooth" size={16} color="white" />
-            <ThemedText style={styles.statusText}>已连接: {connectedDevice?.name}</ThemedText>
-            <TouchableOpacity onPress={handleDisconnectDevice} style={styles.disconnectButton}>
-              <Ionicons name="close" size={16} color="white" />
-            </TouchableOpacity>
-          </ThemedView>
-        );
-      case BluetoothConnectionStatus.CONNECTING:
-        return (
-          <ThemedView style={[styles.statusContainer, styles.connectingStatus]}>
-            <Ionicons name="bluetooth" size={16} color="white" />
-            <ThemedText style={styles.statusText}>正在连接...</ThemedText>
-          </ThemedView>
-        );
-      case BluetoothConnectionStatus.DISCONNECTED:
-        return (
-          <ThemedView style={[styles.statusContainer, styles.disconnectedStatus]}>
-            <Ionicons name="bluetooth-outline" size={16} color="white" />
-            <ThemedText style={styles.statusText}>未连接</ThemedText>
-            <TouchableOpacity onPress={() => setShowDeviceList(true)} style={styles.connectButton}>
-              <Ionicons name="search" size={16} color="white" />
-            </TouchableOpacity>
-          </ThemedView>
-        );
-      default:
-        return null;
-    }
-  };
+  const handleUpdateParams = useCallback(() => {
+    setShowControlPanel(false);
+    setCurrentParams(paramsState);
+  }, [paramsState]);
+
 
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
 
@@ -300,7 +142,7 @@ export default function FreeTrainingScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* 蓝牙连接状态 */}
-      {renderConnectionStatus()}
+      {/*{renderConnectionStatus()}*/}
 
       <ThemedView style={styles.forceMonitorContainer}>
         <ForceBar value={leftHandForce} label="左手力" style={styles.forceBarItem} />
@@ -381,16 +223,7 @@ export default function FreeTrainingScreen() {
         onEnd={handleStopTraining}
       />
 
-      {/* 设备列表模态框 */}
-      <DeviceListModal
-        visible={showDeviceList}
-        devices={devices}
-        scanning={scanning}
-        onRefresh={startScan}
-        onSelectDevice={handleConnectDevice}
-        onClose={() => setShowDeviceList(false)}
-        tintColor={tintColor}
-      />
+      {/* 设备列表模态框已移除 */}
 
       {/* 目标设置弹窗 */}
       <TargetSettingModal
@@ -421,14 +254,14 @@ export default function FreeTrainingScreen() {
               <ThemedView style={styles.sliderContainer}>
                 <TouchableOpacity 
                   style={styles.sliderButton}
-                  onPress={() => setParams(prev => ({...prev, resistanceLevel: Math.max(1, prev.resistanceLevel - 1)}))}
+                  // onPress={() => setParams(prev => ({...prev, resistanceLevel: Math.max(1, prev.resistanceLevel - 1)}))}
                 >
                   <Ionicons name="remove" size={20} color={tintColor} />
                 </TouchableOpacity>
                 <ThemedText style={styles.sliderValue}>{params.resistanceLevel}</ThemedText>
                 <TouchableOpacity 
                   style={styles.sliderButton}
-                  onPress={() => setParams(prev => ({...prev, resistanceLevel: Math.min(10, prev.resistanceLevel + 1)}))}
+                  // onPress={() => setParams(prev => ({...prev, resistanceLevel: Math.min(10, prev.resistanceLevel + 1)}))}
                 >
                   <Ionicons name="add" size={20} color={tintColor} />
                 </TouchableOpacity>
@@ -439,14 +272,14 @@ export default function FreeTrainingScreen() {
               <ThemedView style={styles.sliderContainer}>
                 <TouchableOpacity 
                   style={styles.sliderButton}
-                  onPress={() => setParams(prev => ({...prev, speed: Math.max(1, prev.speed - 1)}))}
+                  // onPress={() => setParams(prev => ({...prev, speed: Math.max(1, prev.speed - 1)}))}
                 >
                   <Ionicons name="remove" size={20} color={tintColor} />
                 </TouchableOpacity>
                 <ThemedText style={styles.sliderValue}>{params.speed}</ThemedText>
                 <TouchableOpacity 
                   style={styles.sliderButton}
-                  onPress={() => setParams(prev => ({...prev, speed: Math.min(10, prev.speed + 1)}))}
+                  // onPress={() => setParams(prev => ({...prev, speed: Math.min(10, prev.speed + 1)}))}
                 >
                   <Ionicons name="add" size={20} color={tintColor} />
                 </TouchableOpacity>

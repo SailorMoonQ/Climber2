@@ -336,11 +336,6 @@ export default function FreeTrainingScreen() {
   );
 }
 
-// 设置动态标题
-export const options = {
-  title: '自由训练',
-};
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

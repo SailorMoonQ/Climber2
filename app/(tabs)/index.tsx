@@ -1,45 +1,78 @@
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
 import { Link } from 'expo-router';
 import { Image } from "expo-image";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
-  const tintColor = Colors[colorScheme ?? 'light'].tint;
+  const isDark = colorScheme === 'dark';
 
   const buttonData = [
-    { title: '动态评估', icon: 'speedometer-outline', href: '/dynamic-assessment' },
-    { title: '自由训练', icon: 'fitness-outline', href: '/free-training' },
-    { title: '情景游戏', icon: 'game-controller-outline', href: '/scenario-game' },
-    { title: '用户管理/运动数据', icon: 'people-outline', href: '/user-management' },
+    {
+      title: '动态评估',
+      icon: 'speedometer-outline',
+      href: '/dynamic-assessment',
+      color: '#FF6B6B',
+    },
+    {
+      title: '自由训练',
+      icon: 'fitness-outline',
+      href: '/free-training',
+      color: '#4ECDC4',
+    },
+    {
+      title: '情景游戏',
+      icon: 'game-controller-outline',
+      href: '/scenario-game',
+      color: '#45B7D1',
+    },
+    {
+      title: '用户管理/运动数据',
+      icon: 'people-outline',
+      href: '/user-management',
+      color: '#96CEB4',
+    },
   ];
 
-
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.buttonContainer}>
-        { buttonData.map((button, index) => (
+    <ThemedView style={[styles.container, {backgroundColor: isDark ? '#121212' : '#f9f9f9'}]}>
+      <View style={styles.buttonContainer}>
+        {buttonData.map((button, index) => (
           // @ts-ignore
           <Link key={index} href={button.href} asChild>
-            <TouchableOpacity style={styles.button}>
-              <Ionicons name={button.icon as any} size={80} color={tintColor} style={styles.icon} />
-              <ThemedText type="subtitle" style={styles.buttonText}>
-                {button.title}
-              </ThemedText>
+            <TouchableOpacity style={[
+              styles.buttonWrapper,
+              {
+                backgroundColor: 'transparent',
+                borderColor: button.color,
+                shadowColor: button.color + '40'
+              }
+            ]}>
+              <ThemedView style={[
+                styles.button,
+              ]}>
+                <Ionicons name={button.icon as any} size={80} color={button.color} style={styles.icon}/>
+                <ThemedText type="subtitle" style={[styles.buttonText, {color: isDark ? '#ffffff' : '#333333'}]}>
+                  {button.title}
+                </ThemedText>
+              </ThemedView>
             </TouchableOpacity>
           </Link>
         ))}
-      </ThemedView>
-      <ThemedView style={styles.logoContainer}>
+      </View>
+
+      {/* Logo 区域 */}
+      <View
+        style={styles.logoContainer}
+      >
         <Image
           source={require('@/assets/images/logo.png')}
-          style={{width: '100%', height: '100%'}}
-          contentFit="contain" />
-      </ThemedView>
+          style={styles.logo}
+          contentFit="contain"/>
+      </View>
     </ThemedView>
   );
 }
@@ -50,44 +83,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
   buttonContainer: {
     width: '100%',
     maxWidth: 600,
     gap: 30,
-    paddingTop: 60,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  buttonWrapper: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 25,
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 8,
   },
   button: {
-    backgroundColor: '#f0f0f0',
-    padding: 33,
-    borderRadius: 25,
+    padding: 30,
+    borderRadius: 23,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-    minHeight: 200,
+    minHeight: 180,
     justifyContent: 'center',
   },
   icon: {
-    marginBottom: 25,
+    marginBottom: 15,
   },
   buttonText: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
+    textAlign: 'center',
   },
   logoContainer: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 20,
     left: '50%',
-    transform: [{ translateX: -140 }],
-    width: 280,
-    height: 100,
+    transform: [{translateX: -50}],
+    width: 140,
+    height: 50,
   },
   logo: {
-    width: 200,
-    height: 200,
+    width: '100%',
+    height: '100%',
   },
 });

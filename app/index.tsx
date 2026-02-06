@@ -1,15 +1,18 @@
 import { useEffect } from 'react';
-import { router, useNavigation } from 'expo-router';
+import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 
 export default function SplashScreen() {
-  const navigation = useNavigation();
-  navigation.setOptions({
-    headerShown: false,
-  });
+  // const navigation = useNavigation();
+  // navigation.setOptions({
+  //   headerTransparent: true,
+  //   headerStyle: {
+  //     borderBottom: 0
+  //   }
+  // });
 
   useEffect(() => {
     // 开屏界面显示时间（毫秒）

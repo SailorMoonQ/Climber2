@@ -258,8 +258,7 @@ export default function FreeTrainingScreen() {
                 >
                   <Ionicons name="remove" size={20} color={tintColor} />
                 </TouchableOpacity>
-                <ThemedText style={styles.sliderValue}>{params.resistanceLevel}</ThemedText>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.sliderButton}
                   // onPress={() => setParams(prev => ({...prev, resistanceLevel: Math.min(10, prev.resistanceLevel + 1)}))}
                 >
@@ -276,8 +275,7 @@ export default function FreeTrainingScreen() {
                 >
                   <Ionicons name="remove" size={20} color={tintColor} />
                 </TouchableOpacity>
-                <ThemedText style={styles.sliderValue}>{params.speed}</ThemedText>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.sliderButton}
                   // onPress={() => setParams(prev => ({...prev, speed: Math.min(10, prev.speed + 1)}))}
                 >
@@ -310,6 +308,7 @@ export default function FreeTrainingScreen() {
         maxHeartRate={150}
         targetHeartRateRange={[100, 130]}
         currentHeartRate={currentHeartRate}
+        // @ts-ignore
         accessories={accessories}
         onAccessoryConnect={(id) => {
           setAccessories(prev => prev.map(acc => 

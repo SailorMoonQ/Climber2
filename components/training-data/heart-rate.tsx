@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
+import { KYTOHeartRateService } from '../../services/kyto-heartrate-service';
 
 // 心率组件接口
 export interface HeartRateProps {
@@ -18,15 +19,15 @@ export const HeartRate: React.FC<HeartRateProps> = ({
 }) => {
   const [heartRate, setHeartRate] = useState<number>(0);
 
-  // 使用模拟心率数据
+  // 使用KYTO心率服务获取真实心率数据
   useEffect(() => {
-    const interval = setInterval(() => {
-      // 生成模拟心率数据（80-120 bpm）
-      const mockHeartRate = Math.floor(Math.random() * 40) + 80;
-      setHeartRate(mockHeartRate);
-    }, 1000);
+    // 连接KYTO心率设备并设置心率回调
+    KYTOHeartRateService.scanAndConnect(setHeartRate);
 
-    return () => clearInterval(interval);
+    // 组件卸载时断开连接
+    return () => {
+      KYTOHeartRateService.disconnect();
+    };
   }, []);
 
   // 添加默认值和错误处理

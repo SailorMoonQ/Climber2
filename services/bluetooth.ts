@@ -49,6 +49,9 @@ class BLEServiceInstance {
   private reconnectTimers: Map<string, number> = new Map();
   private state: BLEStatus = BLEStatus.IDLE;
   private lastConnectedDeviceId: string | null = null;
+  private targetDevices: Array<{name?: string, localName?: string, id?: string}> = []; // Devices we're looking for
+  private foundDevices: Map<string, Device> = new Map(); // Devices that have been found during current scan
+  private scanCallback?: (device: Device) => void;
 
   constructor() {
     try {
@@ -441,6 +444,8 @@ class BLEServiceInstance {
         this.manager.stopDeviceScan();
         this.scanning = false;
         this.state = BLEStatus.IDLE;
+        this.targetDevices = [];
+        this.foundDevices.clear();
         console.log('Scan stopped');
       } catch (error) {
         console.error('Error stopping scan:', error);
@@ -448,19 +453,9 @@ class BLEServiceInstance {
       }
     }
   };
-  scanForDevices = async (durationMs: number = 5000, callback?: (device: Device) => void) => {
+
+  scanForDevices = async (targetDeviceCriteria: Array<{name?: string, localName?: string, id?: string}>, callback?: (device: Device) => void) => {
     try {
-      if (this.scanning) {
-        console.warn('Scan already in progress, stopping existing scan first');
-        this.stopScan();
-      }
-      
-      if (!this.manager) {
-        console.error('Cannot start scan: BLE Manager is null');
-        return new Map<string, Device>();
-      }
-      
-      // Check BLE status
       if (!this.manager) {
         console.error('Cannot start scan: BLE Manager is null');
         this.state = BLEStatus.ERROR;
@@ -475,12 +470,20 @@ class BLEServiceInstance {
         return new Map<string, Device>();
       }
       
+      // Add target devices to the array
+      this.targetDevices.push(...targetDeviceCriteria);
+      
+      // If already scanning, just return the current found devices
+      if (this.scanning) {
+        console.log('Scan already in progress, added new target devices');
+        return this.foundDevices;
+      }
+      
       this.scanning = true;
       this.state = BLEStatus.SCANNING;
+      this.scanCallback = callback;
       console.log('Starting scan for devices...');
-
-      // Store discovered devices to avoid duplicates
-      const discoveredDevices = new Map<string, Device>();
+      console.log('Target devices:', this.targetDevices);
 
       this.manager.startDeviceScan(null, null, (error: BleError | null, scannedDevice: Device | null) => {
         if (error) {
@@ -490,27 +493,13 @@ class BLEServiceInstance {
           return;
         }
 
-        // Check if this is the device we want and not already discovered
-        if (scannedDevice && (scannedDevice.name === DEVICE_NAME || scannedDevice.localName === DEVICE_NAME)) {
-          if (!discoveredDevices.has(scannedDevice.id)) {
-            discoveredDevices.set(scannedDevice.id, scannedDevice);
-            console.log('Device found:', scannedDevice.id, scannedDevice.name);
-            
-            // Notify callback if provided
-            if (callback) {
-              callback(scannedDevice);
-            }
-          }
+        // Process scanned device
+        if (scannedDevice) {
+          this.processScannedDevice(scannedDevice);
         }
       });
 
-      // Stop scanning after duration
-      setTimeout(() => {
-        this.stopScan();
-        console.log('Scan completed. Found', discoveredDevices.size, 'devices.');
-      }, durationMs);
-
-      return discoveredDevices;
+      return this.foundDevices;
     } catch (error) {
       console.error('Failed to start scan:', error);
       this.scanning = false;
@@ -519,59 +508,66 @@ class BLEServiceInstance {
     }
   };
 
+  private processScannedDevice = (scannedDevice: Device) => {
+    // Check if this device matches any of the target criteria
+    const matchesTarget = this.targetDevices.some(target => {
+      return (
+        (target.id && scannedDevice.id === target.id) ||
+        (target.name && scannedDevice.name === target.name) ||
+        (target.localName && scannedDevice.localName === target.localName)
+      );
+    });
+
+    // If it matches a target and not already found
+    if (matchesTarget && !this.foundDevices.has(scannedDevice.id)) {
+      this.foundDevices.set(scannedDevice.id, scannedDevice);
+      console.log('Target device found:', scannedDevice.id, scannedDevice.name);
+      
+      // Notify callback if provided
+      if (this.scanCallback) {
+        this.scanCallback(scannedDevice);
+      }
+      
+      // Check if we've found all target devices
+      this.checkIfAllTargetsFound();
+    }
+  };
+
+  private checkIfAllTargetsFound = () => {
+    if (this.targetDevices.length === 0) {
+      return; // No targets defined
+    }
+    
+    // Check if all target devices have been found
+    const allFound = this.targetDevices.every(target => {
+      return Array.from(this.foundDevices.values()).some(found => {
+        return (
+          (target.id && found.id === target.id) ||
+          (target.name && found.name === target.name) ||
+          (target.localName && found.localName === target.localName)
+        );
+      });
+    });
+    
+    if (allFound) {
+      console.log('All target devices found, stopping scan');
+      this.stopScan();
+    }
+  };
+
   // Original scanAndConnect method for backward compatibility
   scanAndConnect = async () => {
     try {
-      if (this.scanning) {
-        console.warn('Scan already in progress, stopping existing scan first');
-        this.stopScan();
-      }
-      
-      if (!this.manager) {
-        console.error('Cannot start scan: BLE Manager is null');
-        return;
-      }
-      
-      // Check BLE status
-      if (!this.manager) {
-        console.error('Cannot start scan: BLE Manager is null');
-        this.state = BLEStatus.ERROR;
-        return;
-      }
-      
-      // Check permissions
-      const hasPermissions = await requestPermissions();
-      if (!hasPermissions) {
-        console.error('Cannot start scan: Missing BLE permissions');
-        this.state = BLEStatus.ERROR;
-        return;
-      }
-      
-      this.scanning = true;
-      this.state = BLEStatus.SCANNING;
-      console.log('Starting scan...');
-
-      this.manager.startDeviceScan(null, null, (error: BleError | null, scannedDevice: Device | null) => {
-        if (error) {
-          console.error('Scan error:', error);
-          this.scanning = false;
-          this.state = BLEStatus.IDLE;
-          return;
+      // Use the new scanForDevices method with the default device name
+      await this.scanForDevices(
+        [{ name: DEVICE_NAME, localName: DEVICE_NAME }],
+        (scannedDevice) => {
+          // When device is found, connect to it
+          console.log('Device found via scanAndConnect:', scannedDevice.name);
+          this.stopScan();
+          void this.connectToDevice(scannedDevice);
         }
-
-        // Check if this is the device we want
-        if (scannedDevice && (scannedDevice.name === DEVICE_NAME || scannedDevice.localName === DEVICE_NAME)) {
-          console.log('Device found:', scannedDevice?.name);
-
-          try {
-            this.stopScan();
-            void this.connectToDevice(scannedDevice);
-          } catch (stopScanError) {
-            console.error('Error stopping scan:', stopScanError);
-            this.scanning = false;
-          }
-        }
-      });
+      );
     } catch (error) {
       console.error('Failed to start scan:', error);
       this.scanning = false;

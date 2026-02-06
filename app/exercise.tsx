@@ -10,7 +10,7 @@ import Svg, { Circle } from 'react-native-svg';
 import useBluetooth from '@/hooks/useBluetooth';
 import DatabaseService from '@/services/database-service';
 import { User } from '@/interface/user.interface';
-import { CountdownOverlay } from "@/components/ui/countdown-overlay";
+
 import { StartStopControls } from "@/components/ui/start-stop-controls";
 import { PauseModal } from "@/components/ui/pause-modal";
 import { EndModal } from "@/components/ui/end-modal";
@@ -35,8 +35,6 @@ export default function ExerciseScreen() {
   const [isPaused, setIsPaused] = useState(false);
   const [exerciseTime, setExerciseTime] = useState(60); // 1分钟
   const [remainingTime, setRemainingTime] = useState(60);
-  const [countdownVisible, setCountdownVisible] = useState(false);
-  const [countdown, setCountdown] = useState(3);
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
   const [selectedMode, setSelectedMode] = useState<string>('力量'); // 默认选中力量模式
   const [accessories, setAccessories] = useState([
@@ -60,8 +58,11 @@ export default function ExerciseScreen() {
 
   // 处理开始运动
   const handleStartExercise = () => {
-    setCountdownVisible(true);
-    setCountdown(3);
+    // 现在倒计时逻辑在StartStopControls组件中处理
+    // 这里直接开始运动
+    setIsExerciseStarted(true);
+    setIsPaused(false);
+    setRemainingTime(exerciseTime);
   };
 
   // 处理暂停/继续运动
@@ -132,23 +133,6 @@ export default function ExerciseScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({title: `动态姿势评估 ${user?.name || userId}`});
   }, [navigation, userId, user]);
-
-  // 倒计时效果
-  useEffect(() => {
-    if (countdownVisible && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(prev => prev - 1);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else if (countdownVisible && countdown === 0) {
-      // 倒计时结束，开始运动
-      setCountdownVisible(false);
-      setIsExerciseStarted(true);
-      setIsPaused(false);
-      setRemainingTime(exerciseTime);
-    }
-  }, [countdownVisible, countdown]);
 
   // 运动计时
   useEffect(() => {
@@ -297,10 +281,7 @@ export default function ExerciseScreen() {
         }}
       ></StartStopControls>
 
-      {/* 倒计时遮罩层 */}
-      {countdownVisible && (
-        <CountdownOverlay countdown={countdown} visible={countdownVisible}></CountdownOverlay>
-      )}
+      
 
       {/* 连接配件弹窗 */}
       <AccessoryModal

@@ -19,6 +19,8 @@ import { HeartRate } from "@/components/training-data/heart-rate";
 import { ForceBar } from "@/components/force-bar";
 import { Distance } from "@/components/training-data/distance";
 import { AccessoryModal } from "@/components/ui/accessory-modal";
+import { PauseModal } from "@/components/ui/pause-modal";
+import { EndModal } from "@/components/ui/end-modal";
 import { User } from "@/interface/user.interface";
 
 export default function FreeTrainingScreen() {
@@ -82,6 +84,11 @@ export default function FreeTrainingScreen() {
   // 训练控制状态
   const [currentParams, setCurrentParams] = useState(paramsState);
   
+  // 模态框状态
+  const [isPauseModalVisible, setIsPauseModalVisible] = useState(false);
+  const [isEndModalVisible, setIsEndModalVisible] = useState(false);
+  const [isSavingData, setIsSavingData] = useState(false);
+  
   // 设置动态标题
   const navigation = useNavigation();
   useLayoutEffect(() => {
@@ -113,14 +120,54 @@ export default function FreeTrainingScreen() {
       // 恢复训练
       setIsPaused(false);
     } else {
-      // 暂停训练
+      // 暂停训练，显示暂停弹窗
       setIsPaused(true);
+      setIsPauseModalVisible(true);
     }
   }, [isPaused]);
 
-  const handleStopTraining = useCallback(() => {
-    setTrainingStarted(false);
+  // 处理继续运动（从弹窗）
+  const handleResumeFromModal = useCallback(() => {
+    setIsPauseModalVisible(false);
     setIsPaused(false);
+  }, []);
+
+  // 处理结束运动（从暂停弹窗）
+  const handleEndFromModal = useCallback(() => {
+    setIsPauseModalVisible(false);
+    // 显示结束弹窗
+    setIsEndModalVisible(true);
+    setIsSavingData(true);
+
+    // 模拟数据存储过程
+    setTimeout(() => {
+      setIsSavingData(false);
+      // 存储运动数据的逻辑可以在这里实现
+      console.log('运动数据已保存');
+      // 关闭弹窗并重置状态
+      setTimeout(() => {
+        setIsEndModalVisible(false);
+        handleStopTraining();
+      }, 1000);
+    }, 2000);
+  }, []);
+
+  const handleStopTraining = useCallback(() => {
+    setIsEndModalVisible(true);
+    setIsSavingData(true);
+
+    // 模拟数据存储过程
+    setTimeout(() => {
+      setIsSavingData(false);
+      // 存储运动数据的逻辑可以在这里实现
+      console.log('运动数据已保存');
+      // 关闭弹窗并重置状态
+      setTimeout(() => {
+        setIsEndModalVisible(false);
+        setTrainingStarted(false);
+        setIsPaused(false);
+      }, 1000);
+    }, 2000);
   }, []);
 
   const handleUpdateParams = useCallback(() => {
@@ -330,6 +377,19 @@ export default function FreeTrainingScreen() {
           setSelectedMode(mode);
         }}
         selectedMode={selectedMode}
+      />
+      
+      {/* 暂停运动弹窗 */}
+      <PauseModal
+        visible={isPauseModalVisible}
+        onContinue={handleResumeFromModal}
+        onEnd={handleEndFromModal}
+      />
+      
+      {/* 结束运动弹窗 */}
+      <EndModal
+        visible={isEndModalVisible}
+        isSavingData={isSavingData}
       />
     </ThemedView>
   );

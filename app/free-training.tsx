@@ -742,39 +742,39 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
-  heartRate: {
+  distance:  {
     position: 'absolute',
-    bottom: 600,
+    top: 180,
     right: 0,
-    width: '20%',
+    width: '20%'
   },
   heartRateWrapper: {
     position: 'absolute',
-    bottom: 600,
+    top: 380,
     right: 0,
     width: '20%',
   },
   posture: {
     position: 'absolute',
-    bottom: 380,
+    top: 580,
     right: 0,
     width: '20%'
   },
-  calories: {
+  duration: {
     position: 'absolute',
-    bottom: 380,
+    top: 180,
     left: 0,
     width: '20%'
   },
   speed: {
     position: 'absolute',
-    bottom: 565,
+    top: 380,
     left: 0,
     width: '20%'
   },
-  duration: {
+  calories: {
     position: 'absolute',
-    bottom: 705,
+    top: 580,
     left: 0,
     width: '20%'
   },
@@ -792,11 +792,5 @@ const styles = StyleSheet.create({
   forceBarItem: {
     marginHorizontal: 40,
     marginVertical: 20,
-  },
-  distance:  {
-    position: 'absolute',
-    bottom: 750,
-    right: 0,
-    width: '20%'
   },
 });

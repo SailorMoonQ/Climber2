@@ -1,9 +1,9 @@
-import { StyleSheet, TextInput, Pressable, Alert } from 'react-native';
+import { Alert, Pressable, StyleSheet, TextInput } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import DatabaseService from '@/services/database-service';
 import { User } from '@/interface/user.interface';

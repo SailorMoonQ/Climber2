@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import React, { useContext } from 'react';
-import { TouchableOpacity, View, StyleSheet } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';

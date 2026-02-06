@@ -87,5 +87,6 @@ const styles = StyleSheet.create({
   durationValue: {
     alignItems: 'center',
     marginBottom: 5,
+    backgroundColor: 'transparent',
   },
 });

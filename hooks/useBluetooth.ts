@@ -9,7 +9,6 @@ import {
 } from '@/constants/bluetoothConfig';
 import { Buffer } from 'buffer';
 import { BLEService } from "@/services/bluetooth";
-import { saveBluetoothDevice, getBluetoothDevice } from "@/utils/database";
 
 // 定义阻力数据结构
 export interface ResistanceData {
@@ -45,31 +44,9 @@ const useBluetooth = () => {
 
   useEffect(() => {
     try {
-      const subscription = BLEService.manager!.onStateChange(async (state) => {
+      const subscription = BLEService.manager!.onStateChange((state) => {
         setIsEnabled(state === State.PoweredOn);
-        if (state === State.PoweredOn) {
-          // 尝试连接上次连接的设备
-          const lastDevice = await getBluetoothDevice();
-          if (lastDevice) {
-            console.log('Trying to connect to last device:', lastDevice);
-            try {
-              // 尝试直接连接设备
-              const device = await BLEService.manager!.connectToDevice(lastDevice.deviceId, {timeout: 5000});
-              await device.discoverAllServicesAndCharacteristics();
-              setConnectedDevice(device);
-              setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
-              console.log('Successfully connected to last device:', lastDevice);
-              return;
-            } catch (error) {
-              console.error('Failed to connect to last device:', error);
-              // 连接失败，开始扫描
-              startScan();
-            }
-          } else {
-            // 没有上次连接的设备，开始扫描
-            startScan();
-          }
-        } else if (state === State.PoweredOff) {
+        if (state === State.PoweredOff) {
           stopScan();
         }
       }, true);
@@ -84,7 +61,7 @@ const useBluetooth = () => {
 
   const stopScan = useCallback(() => {
     try {
-      BLEService.manager.stopDeviceScan();
+      BLEService.manager!.stopDeviceScan();
     } catch (error) {
       console.error('Failed to stop scan:', error);
     } finally {
@@ -189,11 +166,6 @@ const useBluetooth = () => {
 
       setConnectedDevice(newConnectedDevice);
       setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
-
-      // 保存设备信息到数据库
-      if (newConnectedDevice.id && newConnectedDevice.name) {
-        await saveBluetoothDevice(newConnectedDevice.id, newConnectedDevice.name);
-      }
 
       // Set up notifications with error handling
       try {

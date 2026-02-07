@@ -2,6 +2,9 @@ import React from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { Ionicons } from '@expo/vector-icons';
+import { getBluetoothDevice } from '../../utils/database';
+import { BLEService } from '../../services/bluetooth';
+import { KYTOHeartRateService } from '../../services/kyto-heartrate-service';
 
 interface AccessoryModalProps {
   visible: boolean;
@@ -25,14 +28,90 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
   selectedMode,
 }) => {
   const modes = ['热身', '力量', '有氧', '无氧'];
+  
+  // 配件连接状态管理
+  const [accessoryStatus, setAccessoryStatus] = React.useState<Record<string, string>>({
+    heartRate: 'connected',
+    posture: 'connected',
+    force: 'connected'
+  });
 
   // 固定的三个配件，已硬编码到JSX中
 
-  const handleAccessoryAction = (id: string, status: string) => {
-    if (status === 'connected') {
+  const handleAccessoryAction = (id: string) => {
+    const currentStatus = accessoryStatus[id];
+    
+    if (currentStatus === 'connected') {
+      // 断开连接
+      setAccessoryStatus(prev => ({ ...prev, [id]: 'disconnected' }));
       onAccessoryDisconnect?.(id);
     } else {
+      // 连接设备
+      setAccessoryStatus(prev => ({ ...prev, [id]: 'connecting' }));
       onAccessoryConnect?.(id);
+      // 模拟连接成功，实际应用中应该根据蓝牙连接结果来更新状态
+      setTimeout(() => {
+        setAccessoryStatus(prev => ({ ...prev, [id]: 'connected' }));
+      }, 1000);
+    }
+  };
+
+  const handleHeartRateConnection = async (deviceType: string) => {
+    try {
+      // 设置状态为连接中
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connecting' }));
+      
+      // 从数据库中获取保存的蓝牙设备信息
+      const savedDevice = await getBluetoothDevice('heartRate');
+      
+      if (savedDevice) {
+        console.log('Found saved heart rate device:', savedDevice);
+        
+        // 使用KYTO心率服务进行连接
+        await KYTOHeartRateService.scanAndConnect((heartRate) => {
+          // 心率数据回调
+          console.log('Received heart rate:', heartRate);
+        });
+        
+        // 连接成功后更新状态
+        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
+        
+        // 调用外部连接回调
+        onAccessoryConnect?.(deviceType);
+      } else {
+        console.log('No saved heart rate device found, scanning for new devices...');
+        
+        // 如果没有保存的设备，扫描并连接
+        await KYTOHeartRateService.scanAndConnect((heartRate) => {
+          // 心率数据回调
+          console.log('Received heart rate:', heartRate);
+        });
+        
+        // 连接成功后更新状态
+        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
+        
+        // 调用外部连接回调
+        onAccessoryConnect?.(deviceType);
+      }
+    } catch (error) {
+      console.error('Heart rate connection error:', error);
+      // 连接失败，恢复为断开状态
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
+    }
+  };
+
+  const handleHeartRateDisconnection = async (deviceType: string) => {
+    try {
+      // 断开心率设备连接
+      await KYTOHeartRateService.disconnect();
+      
+      // 更新状态为断开
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
+      
+      // 调用外部断开连接回调
+      onAccessoryDisconnect?.(deviceType);
+    } catch (error) {
+      console.error('Heart rate disconnection error:', error);
     }
   };
 
@@ -92,34 +171,67 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
           <View style={styles.accessoryRow}>
             <ThemedText style={styles.accessoryLabel}>心率</ThemedText>
             <ThemedText style={styles.accessoryValue}>{`${maxHeartRate}bpm`}</ThemedText>
-            <TouchableOpacity 
-              style={styles.disconnectButton}
-              onPress={() => handleAccessoryAction('heartRate', 'connected')}
-            >
-              <ThemedText style={styles.disconnectText}>断开</ThemedText>
-            </TouchableOpacity>
+            {accessoryStatus.heartRate === 'connected' ? (
+              <TouchableOpacity 
+                style={styles.disconnectButton}
+                onPress={() => handleHeartRateDisconnection('heartRate')}
+              >
+                <ThemedText style={styles.disconnectText}>断开</ThemedText>
+              </TouchableOpacity>
+            ) : accessoryStatus.heartRate === 'connecting' ? (
+              <ThemedText style={styles.connectingText}>连接中...</ThemedText>
+            ) : (
+              <TouchableOpacity 
+                style={styles.connectButton}
+                onPress={() => handleHeartRateConnection('heartRate')}
+              >
+                <ThemedText style={styles.connectText}>连接</ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
           
           {/* 体姿配件 */}
           <View style={styles.accessoryRow}>
             <ThemedText style={styles.accessoryLabel}>体姿</ThemedText>
-            <TouchableOpacity 
-              style={styles.disconnectButton}
-              onPress={() => handleAccessoryAction('posture', 'connected')}
-            >
-              <ThemedText style={styles.disconnectText}>断开</ThemedText>
-            </TouchableOpacity>
+            {accessoryStatus.posture === 'connected' ? (
+              <TouchableOpacity 
+                style={styles.disconnectButton}
+                onPress={() => handleAccessoryAction('posture')}
+              >
+                <ThemedText style={styles.disconnectText}>断开</ThemedText>
+              </TouchableOpacity>
+            ) : accessoryStatus.posture === 'connecting' ? (
+              <ThemedText style={styles.connectingText}>连接中...</ThemedText>
+            ) : (
+              <TouchableOpacity 
+                style={styles.connectButton}
+                onPress={() => handleAccessoryAction('posture')}
+              >
+                <ThemedText style={styles.connectText}>连接</ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
           
           {/* Force配件 */}
           <View style={styles.accessoryRow}>
             <ThemedText style={styles.accessoryLabel}>Force</ThemedText>
-            <TouchableOpacity 
-              style={styles.disconnectButton}
-              onPress={() => handleAccessoryAction('force', 'connected')}
-            >
-              <ThemedText style={styles.disconnectText}>断开</ThemedText>
-            </TouchableOpacity>
+            {accessoryStatus.force === 'connected' ? (
+              <TouchableOpacity 
+                style={styles.disconnectButton}
+                onPress={() => handleAccessoryAction('force')}
+              >
+                <ThemedText style={styles.disconnectText}>断开</ThemedText>
+              </TouchableOpacity>
+            ) : accessoryStatus.force === 'connecting' ? (
+              <ThemedText style={styles.connectingText}>连接中...</ThemedText>
+            ) : (
+              <TouchableOpacity 
+                style={styles.connectButton}
+                onPress={() => handleAccessoryAction('force')}
+              >
+                <ThemedText style={styles.connectText}>连接</ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* 确认按钮 */}

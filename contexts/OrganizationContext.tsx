@@ -19,7 +19,6 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
   useEffect(() => {
     const setupDatabase = async () => {
       try {
-        await initDatabase();
         const savedName = await getOrganizationName();
         if (savedName) {
           setOrganizationNameState(savedName);

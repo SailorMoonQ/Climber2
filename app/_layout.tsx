@@ -7,6 +7,7 @@ import { UserProvider } from "@/contexts/UserContext";
 import { Platform } from "react-native";
 import { useEffect } from "react";
 import { BLEService, requestPermissions } from "@/services/bluetooth";
+import { initDatabase } from "@/utils/database";
 
 
 export default function RootLayout() {
@@ -18,6 +19,13 @@ export default function RootLayout() {
   }
 
   useEffect(() => {
+    // 初始化数据库
+    initDatabase().then(() => {
+      console.log('Database initialized successfully');
+    }).catch(error => {
+      console.error('Error initializing database:', error);
+    });
+
     BLEService.init().then(() => {
       console.log('BLE Service initialized successfully');
     });

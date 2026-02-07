@@ -77,10 +77,6 @@ class BLEServiceInstance {
         console.error('Cannot check BLE status: manager is null');
         this.state = BLEStatus.ERROR;
       }
-      // Try to reconnect if we were previously connected
-      if (this.lastConnectedDeviceId) {
-        await this.autoReconnect(this.lastConnectedDeviceId);
-      }
     } else if (nextAppState === 'background') {
       // App has gone to background, clean up unnecessary subscriptions
       this.pause();
@@ -92,7 +88,6 @@ class BLEServiceInstance {
     this.connectedDevices.delete(deviceId);
     this.lastConnectedDeviceId = deviceId;
     this.state = BLEStatus.DISCONNECTED;
-    this.autoReconnect(deviceId);
   };
 
   init = async (): Promise<BleManager | null> => {

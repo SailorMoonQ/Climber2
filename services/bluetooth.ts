@@ -1,6 +1,5 @@
 import { BleError, BleManager, Characteristic, Device, Subscription } from 'react-native-ble-plx'
 import { AppState, AppStateStatus, PermissionsAndroid, Platform } from "react-native";
-import { DEVICE_NAME, NOTIFY_CHARACTERISTIC_UUID, SERVICE_UUID, PoseData, parsePoseData } from "@/services/pose";
 
 
 export const requestPermissions = async () => {
@@ -43,13 +42,13 @@ class BLEServiceInstance {
   manager: BleManager | null = null;
   private scanning = false;
   private connectedDevices: Map<string, Device> = new Map(); // Store connected devices by ID
-  private notificationCallbacks: Map<string, (data: PoseData) => void> = new Map();
+  private notificationCallbacks: Map<string, (data: any) => void> = new Map();
   private subscriptions: Map<string, Subscription> = new Map(); // Store all subscriptions for unified cleanup
   private appStateSubscription: any = null;
   private reconnectTimers: Map<string, number> = new Map();
   private state: BLEStatus = BLEStatus.IDLE;
   private lastConnectedDeviceId: string | null = null;
-  private targetDevices: Array<{name?: string, localName?: string, id?: string}> = []; // Devices we're looking for
+  private targetDevices: {name?: string, localName?: string, id?: string}[] = []; // Devices we're looking for
   private foundDevices: Map<string, Device> = new Map(); // Devices that have been found during current scan
   private scanCallback?: (device: Device) => void;
 
@@ -111,7 +110,8 @@ class BLEServiceInstance {
     }
   };
 
-  startPoseNotifications = async (connectedDevice: Device, callback?: (data: PoseData) => void) => {
+  // Generic notification start method - to be implemented by specific services
+  startNotifications = async (connectedDevice: Device, serviceUUID: string, characteristicUUID: string, callback?: (data: any) => void) => {
     try {
       console.log('Starting notifications for device:', connectedDevice.id);
 
@@ -129,8 +129,8 @@ class BLEServiceInstance {
 
       // Store the subscription
       const subscription = connectedDevice.monitorCharacteristicForService(
-        SERVICE_UUID,
-        NOTIFY_CHARACTERISTIC_UUID,
+        serviceUUID,
+        characteristicUUID,
         (error: BleError | null, characteristic: (Characteristic | null)) => {
           if (error) {
             console.error('Notification error for device', connectedDevice.id, ':', error);
@@ -140,23 +140,10 @@ class BLEServiceInstance {
           }
 
           if (characteristic?.value) {
-            try {
-              // Parse pose data using the external function
-              const poseData = parsePoseData(characteristic.value);
-              
-              if (poseData) {
-                console.log('Device', connectedDevice.id, 'Full Hex Data:', poseData.fullHex);
-                console.log('Device', connectedDevice.id, 'Last 12 chars:', poseData.last12Hex);
-                console.log('Device', connectedDevice.id, 'Decimal value:', poseData.decimal);
-
-                // Call device-specific callback if registered
-                const deviceCallback = this.notificationCallbacks.get(connectedDevice.id);
-                if (deviceCallback) {
-                  deviceCallback(poseData);
-                }
-              }
-            } catch (parseError) {
-              console.error('Error parsing notification data for device', connectedDevice.id, ':', parseError);
+            // Pass raw data to callback - parsing should be done by specific service
+            const deviceCallback = this.notificationCallbacks.get(connectedDevice.id);
+            if (deviceCallback) {
+              deviceCallback(characteristic.value);
             }
           }
         }
@@ -186,7 +173,7 @@ class BLEServiceInstance {
     this.notificationCallbacks.delete(deviceId);
   };
 
-  connectToDevice = async (scannedDevice: Device, callback?: (data: PoseData) => void) => {
+  connectToDevice = async (scannedDevice: Device, callback?: (data: any) => void) => {
     try {
       if (!scannedDevice) {
         console.error('Cannot connect: scannedDevice is null');
@@ -230,9 +217,6 @@ class BLEServiceInstance {
 
       // Add to connected devices map
       this.connectedDevices.set(device.id, device);
-
-      // Start listening to notifications
-      void this.startPoseNotifications(device, callback);
 
       // Set up connection loss handler
       this.setupConnectionLossHandler(device);
@@ -295,7 +279,7 @@ class BLEServiceInstance {
             // Restore notifications
             const callback = this.notificationCallbacks.get(deviceId);
             if (callback) {
-              void this.startPoseNotifications(fullyConnectedDevice, callback);
+              // void this.startPoseNotifications(fullyConnectedDevice, callback);
             }
             
             // Clear the reconnect timer
@@ -552,26 +536,6 @@ class BLEServiceInstance {
     if (allFound) {
       console.log('All target devices found, stopping scan');
       this.stopScan();
-    }
-  };
-
-  // Original scanAndConnect method for backward compatibility
-  scanAndConnect = async () => {
-    try {
-      // Use the new scanForDevices method with the default device name
-      await this.scanForDevices(
-        [{ name: DEVICE_NAME, localName: DEVICE_NAME }],
-        (scannedDevice) => {
-          // When device is found, connect to it
-          console.log('Device found via scanAndConnect:', scannedDevice.name);
-          this.stopScan();
-          void this.connectToDevice(scannedDevice);
-        }
-      );
-    } catch (error) {
-      console.error('Failed to start scan:', error);
-      this.scanning = false;
-      this.state = BLEStatus.IDLE;
     }
   };
 }

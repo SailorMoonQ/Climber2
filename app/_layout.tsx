@@ -19,7 +19,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     BLEService.init().then(() => {
-      void BLEService.scanAndConnect();
+      console.log('BLE Service initialized successfully');
     });
 
     return () => {

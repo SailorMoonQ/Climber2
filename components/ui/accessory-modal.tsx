@@ -8,13 +8,6 @@ interface AccessoryModalProps {
   onClose: () => void;
   maxHeartRate?: number;
   targetHeartRateRange?: [number, number];
-
-  accessories?: Array<{
-    id: string;
-    name: string;
-    status: 'connected' | 'connecting' | 'disconnected';
-    value?: string;
-  }>;
   onAccessoryConnect?: (id: string) => void;
   onAccessoryDisconnect?: (id: string) => void;
   onModeSelect?: (mode: string) => void;
@@ -26,14 +19,14 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
   onClose,
   maxHeartRate = 150,
   targetHeartRateRange = [100, 130],
-
-  accessories = [],
   onAccessoryConnect,
   onAccessoryDisconnect,
   onModeSelect,
   selectedMode,
 }) => {
   const modes = ['热身', '力量', '有氧', '无氧'];
+
+  // 固定的三个配件，已硬编码到JSX中
 
   const handleAccessoryAction = (id: string, status: string) => {
     if (status === 'connected') {
@@ -95,39 +88,39 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
           <ThemedText style={styles.sectionTitle}>连接配件</ThemedText>
           <ThemedText style={styles.accessoryStatus}>得心应手</ThemedText>
 
-          {accessories.map((accessory) => (
-            <View key={accessory.id} style={styles.accessoryRow}>
-              <ThemedText style={styles.accessoryLabel}>{accessory.name}</ThemedText>
-              
-              {accessory.value && (
-                <ThemedText style={styles.accessoryValue}>{accessory.value}</ThemedText>
-              )}
-              
-              {accessory.status === 'connected' && (
-                <TouchableOpacity 
-                  style={styles.disconnectButton}
-                  onPress={() => handleAccessoryAction(accessory.id, accessory.status)}
-                >
-                  <ThemedText style={styles.disconnectText}>断开</ThemedText>
-                </TouchableOpacity>
-              )}
-              
-              {accessory.status === 'connecting' && (
-                <TouchableOpacity style={styles.connectingButton}>
-                  <ThemedText style={styles.connectingText}>连接中</ThemedText>
-                </TouchableOpacity>
-              )}
-              
-              {accessory.status === 'disconnected' && (
-                <TouchableOpacity 
-                  style={styles.connectButton}
-                  onPress={() => handleAccessoryAction(accessory.id, accessory.status)}
-                >
-                  <ThemedText style={styles.connectText}>连接</ThemedText>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
+          {/* 心率配件 */}
+          <View style={styles.accessoryRow}>
+            <ThemedText style={styles.accessoryLabel}>心率</ThemedText>
+            <ThemedText style={styles.accessoryValue}>{`${maxHeartRate}bpm`}</ThemedText>
+            <TouchableOpacity 
+              style={styles.disconnectButton}
+              onPress={() => handleAccessoryAction('heartRate', 'connected')}
+            >
+              <ThemedText style={styles.disconnectText}>断开</ThemedText>
+            </TouchableOpacity>
+          </View>
+          
+          {/* 体姿配件 */}
+          <View style={styles.accessoryRow}>
+            <ThemedText style={styles.accessoryLabel}>体姿</ThemedText>
+            <TouchableOpacity 
+              style={styles.disconnectButton}
+              onPress={() => handleAccessoryAction('posture', 'connected')}
+            >
+              <ThemedText style={styles.disconnectText}>断开</ThemedText>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Force配件 */}
+          <View style={styles.accessoryRow}>
+            <ThemedText style={styles.accessoryLabel}>Force</ThemedText>
+            <TouchableOpacity 
+              style={styles.disconnectButton}
+              onPress={() => handleAccessoryAction('force', 'connected')}
+            >
+              <ThemedText style={styles.disconnectText}>断开</ThemedText>
+            </TouchableOpacity>
+          </View>
 
           {/* 确认按钮 */}
           <TouchableOpacity

@@ -1,9 +1,10 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Stack } from 'expo-router';
 import { OrganizationContext } from '@/contexts/OrganizationContext';
+import { getAllBluetoothDevices, saveBluetoothDevice } from '@/utils/database';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
@@ -12,6 +13,64 @@ export default function SettingsScreen() {
   const [versionMode, setVersionMode] = useState('单机版');
   const [language, setLanguage] = useState('中文');
   const [organizationNameInput, setOrganizationNameInput] = useState('');
+  
+  // 蓝牙连接标识状态
+  const [heartRateDeviceId, setHeartRateDeviceId] = useState('');
+  const [postureDeviceId, setPostureDeviceId] = useState('');
+  const [forceDeviceId, setForceDeviceId] = useState('');
+  
+  // 保存蓝牙设置
+  const handleSaveBluetoothSettings = async () => {
+    try {
+      // 保存心率设备
+      if (heartRateDeviceId.trim()) {
+        await saveBluetoothDevice('heartRate', heartRateDeviceId.trim(), '心率设备');
+      }
+      
+      // 保存体姿设备
+      if (postureDeviceId.trim()) {
+        await saveBluetoothDevice('posture', postureDeviceId.trim(), '体姿设备');
+      }
+      
+      // 保存Force设备
+      if (forceDeviceId.trim()) {
+        await saveBluetoothDevice('force', forceDeviceId.trim(), 'Force设备');
+      }
+      
+      Alert.alert('成功', '蓝牙设备标识已保存');
+    } catch (error) {
+      console.error('Error saving bluetooth settings:', error);
+      Alert.alert('错误', '保存蓝牙设备标识失败');
+    }
+  };
+  
+  // 加载已保存的蓝牙设备设置
+  useEffect(() => {
+    const loadBluetoothSettings = async () => {
+      try {
+        const devices = await getAllBluetoothDevices();
+        
+        // 初始化设备ID
+        devices.forEach(device => {
+          switch (device.deviceType) {
+            case 'heartRate':
+              setHeartRateDeviceId(device.deviceId);
+              break;
+            case 'posture':
+              setPostureDeviceId(device.deviceId);
+              break;
+            case 'force':
+              setForceDeviceId(device.deviceId);
+              break;
+          }
+        });
+      } catch (error) {
+        console.error('Error loading bluetooth settings:', error);
+      }
+    };
+    
+    loadBluetoothSettings();
+  }, []);
   
   const organizationContext = useContext(OrganizationContext);
   
@@ -41,7 +100,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? Colors.dark.background : Colors.light.background }]}>
+    <ScrollView style={[styles.container, { backgroundColor: isDarkMode ? Colors.dark.background : Colors.light.background }]} contentContainerStyle={{ paddingBottom: 30 }}>
       <Stack.Screen 
         options={{
           title: '设置',
@@ -166,6 +225,47 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* 蓝牙设置 */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>蓝牙设置</Text>
+        <View style={styles.formItem}>
+          <Text style={[styles.label, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>心率设备标识:</Text>
+          <TextInput 
+            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? Colors.dark.text : Colors.light.text }]} 
+            placeholder="请输入心率设备蓝牙标识"
+            placeholderTextColor={isDarkMode ? '#888' : '#999'}
+            value={heartRateDeviceId}
+            onChangeText={setHeartRateDeviceId}
+          />
+        </View>
+        <View style={styles.formItem}>
+          <Text style={[styles.label, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>体姿设备标识:</Text>
+          <TextInput 
+            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? Colors.dark.text : Colors.light.text }]} 
+            placeholder="请输入体姿设备蓝牙标识"
+            placeholderTextColor={isDarkMode ? '#888' : '#999'}
+            value={postureDeviceId}
+            onChangeText={setPostureDeviceId}
+          />
+        </View>
+        <View style={styles.formItem}>
+          <Text style={[styles.label, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>Force设备标识:</Text>
+          <TextInput 
+            style={[styles.input, { backgroundColor: isDarkMode ? '#333' : '#fff', color: isDarkMode ? Colors.dark.text : Colors.light.text }]} 
+            placeholder="请输入Force设备蓝牙标识"
+            placeholderTextColor={isDarkMode ? '#888' : '#999'}
+            value={forceDeviceId}
+            onChangeText={setForceDeviceId}
+          />
+        </View>
+        <TouchableOpacity 
+          style={[styles.saveButton, { backgroundColor: isDarkMode ? Colors.dark.tint : Colors.light.tint, marginTop: 10 }]}
+          onPress={handleSaveBluetoothSettings}
+        >
+          <Text style={styles.saveButtonText}>保存蓝牙设置</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* 设备信息 */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>设备信息</Text>
@@ -202,13 +302,12 @@ export default function SettingsScreen() {
           <Text style={[styles.qrCodeText, { color: isDarkMode ? Colors.dark.text : Colors.light.text }]}>普康公众号二维码</Text>
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     padding: 20,
   },
   section: {

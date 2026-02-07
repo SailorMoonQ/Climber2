@@ -20,6 +20,7 @@ export const initDatabase = async () => {
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS bluetooth_device (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_type TEXT NOT NULL,
         device_id TEXT NOT NULL,
         device_name TEXT NOT NULL,
         connected_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -78,24 +79,25 @@ export const getOrganizationName = async (): Promise<string | null> => {
 };
 
 // 保存蓝牙设备信息
-export const saveBluetoothDevice = async (deviceId: string, deviceName: string) => {
+export const saveBluetoothDevice = async (deviceType: string, deviceId: string, deviceName: string) => {
   try {
-    // 检查是否已有设备信息
+    // 检查是否已有该类型的设备信息
     const result = await db.getFirstAsync<{ count: number }>(
-      'SELECT COUNT(*) as count FROM bluetooth_device'
+      'SELECT COUNT(*) as count FROM bluetooth_device WHERE device_type = ?',
+      [deviceType]
     );
     
     if (result?.count && result.count > 0) {
       // 更新现有记录
       await db.runAsync(
-        'UPDATE bluetooth_device SET device_id = ?, device_name = ?, connected_at = CURRENT_TIMESTAMP WHERE id = 1',
-        [deviceId, deviceName]
+        'UPDATE bluetooth_device SET device_id = ?, device_name = ?, connected_at = CURRENT_TIMESTAMP WHERE device_type = ?',
+        [deviceId, deviceName, deviceType]
       );
     } else {
       // 插入新记录
       await db.runAsync(
-        'INSERT INTO bluetooth_device (id, device_id, device_name) VALUES (1, ?, ?)',
-        [deviceId, deviceName]
+        'INSERT INTO bluetooth_device (device_type, device_id, device_name) VALUES (?, ?, ?)',
+        [deviceType, deviceId, deviceName]
       );
     }
     
@@ -108,10 +110,11 @@ export const saveBluetoothDevice = async (deviceId: string, deviceName: string) 
 };
 
 // 获取蓝牙设备信息
-export const getBluetoothDevice = async (): Promise<{ deviceId: string; deviceName: string } | null> => {
+export const getBluetoothDevice = async (deviceType: string): Promise<{ deviceId: string; deviceName: string } | null> => {
   try {
     const result = await db.getFirstAsync<{ device_id: string; device_name: string }>(
-      'SELECT device_id, device_name FROM bluetooth_device WHERE id = 1'
+      'SELECT device_id, device_name FROM bluetooth_device WHERE device_type = ?',
+      [deviceType]
     );
     
     if (result) {
@@ -123,6 +126,24 @@ export const getBluetoothDevice = async (): Promise<{ deviceId: string; deviceNa
     return null;
   } catch (error) {
     console.error('Error getting bluetooth device:', error);
+    throw error;
+  }
+};
+
+// 获取所有蓝牙设备信息
+export const getAllBluetoothDevices = async (): Promise<Array<{ deviceType: string; deviceId: string; deviceName: string }>> => {
+  try {
+    const results = await db.getAllAsync<{ device_type: string; device_id: string; device_name: string }>(
+      'SELECT device_type, device_id, device_name FROM bluetooth_device'
+    );
+    
+    return results.map(result => ({
+      deviceType: result.device_type,
+      deviceId: result.device_id,
+      deviceName: result.device_name
+    }));
+  } catch (error) {
+    console.error('Error getting all bluetooth devices:', error);
     throw error;
   }
 };

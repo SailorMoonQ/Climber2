@@ -45,7 +45,7 @@ const useBluetooth = () => {
 
   useEffect(() => {
     try {
-      const subscription = BLEService.manager.onStateChange(async (state) => {
+      const subscription = BLEService.manager!.onStateChange(async (state) => {
         setIsEnabled(state === State.PoweredOn);
         if (state === State.PoweredOn) {
           // 尝试连接上次连接的设备
@@ -54,7 +54,7 @@ const useBluetooth = () => {
             console.log('Trying to connect to last device:', lastDevice);
             try {
               // 尝试直接连接设备
-              const device = await BLEService.manager.connectToDevice(lastDevice.deviceId, {timeout: 5000});
+              const device = await BLEService.manager!.connectToDevice(lastDevice.deviceId, {timeout: 5000});
               await device.discoverAllServicesAndCharacteristics();
               setConnectedDevice(device);
               setConnectionStatus(BluetoothConnectionStatus.CONNECTED);

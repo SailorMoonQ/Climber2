@@ -46,11 +46,7 @@ class KYTOHeartRateServiceInstance {
       // 获取Flags字节
       const flagsByte = rawData.charCodeAt(0);
       
-      // 解析心率值 - 根据设备规范和示例数据，心率值是第2个字节(16进制)的完整值
-      // 例如：0X10A47601760176017601 中的第2个字节0XA4是心率，对应十进制164
-      // 注意：虽然用户提到"rawData.charCodeAt(1)中的前2个bit是heartRate"，
-      // 但从示例数据看，前2个bit（如A4的10）会导致心率值为2，不符合正常心率范围
-      // 因此心率值应该是整个第2个字节的值
+      // 解析心率值
       console.log(hexString);
 
       heartRate = parseInt(hexString.substring(4, 6), 16);

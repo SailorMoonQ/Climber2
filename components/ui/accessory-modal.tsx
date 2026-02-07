@@ -4,6 +4,8 @@ import { ThemedText } from '../themed-text';
 import { Ionicons } from '@expo/vector-icons';
 import { getBluetoothDevice } from '@/utils/database';
 import { KYTOHeartRateService } from '@/services/kyto-heartrate-service';
+import { WitMotionService } from '@/services/wit-motion-service';
+import { ForceService } from '@/services/force-service';
 
 interface AccessoryModalProps {
   visible: boolean;
@@ -30,24 +32,6 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
     posture: 'connected',
     force: 'connected'
   });
-
-  // 固定的三个配件，已硬编码到JSX中
-
-  const handleAccessoryAction = (id: string) => {
-    const currentStatus = accessoryStatus[id];
-    
-    if (currentStatus === 'connected') {
-      // 断开连接
-      setAccessoryStatus(prev => ({ ...prev, [id]: 'disconnected' }));
-    } else {
-      // 连接设备
-      setAccessoryStatus(prev => ({ ...prev, [id]: 'connecting' }));
-      // 模拟连接成功，实际应用中应该根据蓝牙连接结果来更新状态
-      setTimeout(() => {
-        setAccessoryStatus(prev => ({ ...prev, [id]: 'connected' }));
-      }, 1000);
-    }
-  };
 
   const handleHeartRateConnection = async (deviceType: string) => {
     try {
@@ -96,6 +80,106 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
       setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
     } catch (error) {
       console.error('Heart rate disconnection error:', error);
+    }
+  };
+
+  const handlePostureConnection = async (deviceType: string) => {
+    try {
+      // 设置状态为连接中
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connecting' }));
+      
+      // 从数据库中获取保存的蓝牙设备信息
+      const savedDevice = await getBluetoothDevice('posture');
+      
+      if (savedDevice) {
+        console.log('Found saved posture device:', savedDevice);
+        
+        // 使用Wit Motion姿态服务进行连接
+        await WitMotionService.scanAndConnect((poseData) => {
+          // 体姿数据回调
+          console.log('Received pose data:', poseData);
+        });
+        
+        // 连接成功后更新状态
+        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
+      } else {
+        console.log('No saved posture device found, scanning for new devices...');
+        
+        // 如果没有保存的设备，扫描并连接
+        await WitMotionService.scanAndConnect((poseData) => {
+          // 体姿数据回调
+          console.log('Received pose data:', poseData);
+        });
+        
+        // 连接成功后更新状态
+        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
+      }
+    } catch (error) {
+      console.error('Posture connection error:', error);
+      // 连接失败，恢复为断开状态
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
+    }
+  };
+
+  const handlePostureDisconnection = async (deviceType: string) => {
+    try {
+      // 断开体姿设备连接
+      await WitMotionService.disconnect();
+      
+      // 更新状态为断开
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
+    } catch (error) {
+      console.error('Posture disconnection error:', error);
+    }
+  };
+
+  const handleForceConnection = async (deviceType: string) => {
+    try {
+      // 设置状态为连接中
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connecting' }));
+      
+      // 从数据库中获取保存的蓝牙设备信息
+      const savedDevice = await getBluetoothDevice('force');
+      
+      if (savedDevice) {
+        console.log('Found saved force device:', savedDevice);
+        
+        // 使用Force服务进行连接
+        await ForceService.scanAndConnect((forceData) => {
+          // Force数据回调
+          console.log('Received force data:', forceData);
+        });
+        
+        // 连接成功后更新状态
+        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
+      } else {
+        console.log('No saved force device found, scanning for new devices...');
+        
+        // 如果没有保存的设备，扫描并连接
+        await ForceService.scanAndConnect((forceData) => {
+          // Force数据回调
+          console.log('Received force data:', forceData);
+        });
+        
+        // 连接成功后更新状态
+        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
+      }
+    } catch (error) {
+      console.error('Force connection error:', error);
+      // 连接失败，恢复为断开状态
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
+    }
+  };
+
+  const handleForceDisconnection = async (deviceType: string) => {
+    try {
+      // 断开Force设备连接
+      await ForceService.disconnect();
+      
+      // 更新状态为断开
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
+    } catch (error) {
+      console.error('Force disconnection error:', error);
     }
   };
 
@@ -180,7 +264,7 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
             {accessoryStatus.posture === 'connected' ? (
               <TouchableOpacity 
                 style={styles.disconnectButton}
-                onPress={() => handleAccessoryAction('posture')}
+                onPress={() => handlePostureDisconnection('posture')}
               >
                 <ThemedText style={styles.disconnectText}>断开</ThemedText>
               </TouchableOpacity>
@@ -189,7 +273,7 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
             ) : (
               <TouchableOpacity 
                 style={styles.connectButton}
-                onPress={() => handleAccessoryAction('posture')}
+                onPress={() => handlePostureConnection('posture')}
               >
                 <ThemedText style={styles.connectText}>连接</ThemedText>
               </TouchableOpacity>
@@ -202,7 +286,7 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
             {accessoryStatus.force === 'connected' ? (
               <TouchableOpacity 
                 style={styles.disconnectButton}
-                onPress={() => handleAccessoryAction('force')}
+                onPress={() => handleForceDisconnection('force')}
               >
                 <ThemedText style={styles.disconnectText}>断开</ThemedText>
               </TouchableOpacity>
@@ -211,7 +295,7 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
             ) : (
               <TouchableOpacity 
                 style={styles.connectButton}
-                onPress={() => handleAccessoryAction('force')}
+                onPress={() => handleForceConnection('force')}
               >
                 <ThemedText style={styles.connectText}>连接</ThemedText>
               </TouchableOpacity>

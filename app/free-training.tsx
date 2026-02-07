@@ -74,7 +74,7 @@ export default function FreeTrainingScreen() {
   const [currentDistance, setCurrentDistance] = useState(0); // 距离（m）
   const [currentCalories, setCurrentCalories] = useState(0); // 能量消耗（kcal）
   const [currentHeartRate, setCurrentHeartRate] = useState(0); // 心率（bpm）
-  
+
   // 力量数据
   const [leftHandForce, setLeftHandForce] = useState(20.2); // 左手力（N）
   const [rightHandForce, setRightHandForce] = useState(14.2); // 右手力（N）
@@ -101,11 +101,6 @@ export default function FreeTrainingScreen() {
     if (trainingStarted && !isPaused) {
       interval = setInterval(() => {
         setCurrentDuration(prev => prev + 1);
-        // 模拟数据变化
-        setCurrentSpeed(prev => Math.random() * 5 + 2);
-        setCurrentDistance(prev => prev + Math.random() * 0.5);
-        setCurrentCalories(prev => prev + Math.random() * 0.5);
-        setCurrentHeartRate(prev => Math.floor(Math.random() * 30) + 90);
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -175,15 +170,8 @@ export default function FreeTrainingScreen() {
     setCurrentParams(paramsState);
   }, [paramsState]);
 
-
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
 
-  // 配件数据
-  const [accessories, setAccessories] = useState([
-    { id: '1', name: '心率带', status: 'disconnected', value: '' },
-    { id: '2', name: '智能手表', status: 'disconnected', value: '' },
-    { id: '3', name: '血氧仪', status: 'disconnected', value: '' },
-  ]);
   const [selectedMode, setSelectedMode] = useState('有氧');
 
   return (
@@ -352,27 +340,6 @@ export default function FreeTrainingScreen() {
       <AccessoryModal
         visible={isAccessoryModalVisible}
         onClose={() => setIsAccessoryModalVisible(false)}
-        maxHeartRate={150}
-        targetHeartRateRange={[100, 130]}
-        currentHeartRate={currentHeartRate}
-        // @ts-ignore
-        accessories={accessories}
-        onAccessoryConnect={(id) => {
-          setAccessories(prev => prev.map(acc => 
-            acc.id === id ? {...acc, status: 'connecting'} : acc
-          ));
-          // 模拟连接过程
-          setTimeout(() => {
-            setAccessories(prev => prev.map(acc => 
-              acc.id === id ? {...acc, status: 'connected', value: '72bpm'} : acc
-            ));
-          }, 1000);
-        }}
-        onAccessoryDisconnect={(id) => {
-          setAccessories(prev => prev.map(acc => 
-            acc.id === id ? {...acc, status: 'disconnected', value: ''} : acc
-          ));
-        }}
         onModeSelect={(mode) => {
           setSelectedMode(mode);
         }}

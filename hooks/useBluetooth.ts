@@ -105,15 +105,6 @@ const useBluetooth = () => {
               // 连接到找到的设备
               connectToDevice(device).then(success => {
                 console.log(success);
-                // 如果连接失败，且当前没有连接其他设备，则重新开始扫描
-                if (!success && !connectedDevice) {
-                  setTimeout(() => {
-                    // 确保当前没有正在进行的扫描
-                    if (!scanning && isEnabled) {
-                      startScan();
-                    }
-                  }, 2000); // 2秒后重新开始扫描
-                }
               });
             }
           }

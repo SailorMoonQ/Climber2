@@ -2,17 +2,14 @@ import React from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { Ionicons } from '@expo/vector-icons';
-import { getBluetoothDevice } from '../../utils/database';
-import { BLEService } from '../../services/bluetooth';
-import { KYTOHeartRateService } from '../../services/kyto-heartrate-service';
+import { getBluetoothDevice } from '@/utils/database';
+import { KYTOHeartRateService } from '@/services/kyto-heartrate-service';
 
 interface AccessoryModalProps {
   visible: boolean;
   onClose: () => void;
   maxHeartRate?: number;
   targetHeartRateRange?: [number, number];
-  onAccessoryConnect?: (id: string) => void;
-  onAccessoryDisconnect?: (id: string) => void;
   onModeSelect?: (mode: string) => void;
   selectedMode?: string;
 }
@@ -22,8 +19,6 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
   onClose,
   maxHeartRate = 150,
   targetHeartRateRange = [100, 130],
-  onAccessoryConnect,
-  onAccessoryDisconnect,
   onModeSelect,
   selectedMode,
 }) => {
@@ -44,11 +39,9 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
     if (currentStatus === 'connected') {
       // 断开连接
       setAccessoryStatus(prev => ({ ...prev, [id]: 'disconnected' }));
-      onAccessoryDisconnect?.(id);
     } else {
       // 连接设备
       setAccessoryStatus(prev => ({ ...prev, [id]: 'connecting' }));
-      onAccessoryConnect?.(id);
       // 模拟连接成功，实际应用中应该根据蓝牙连接结果来更新状态
       setTimeout(() => {
         setAccessoryStatus(prev => ({ ...prev, [id]: 'connected' }));
@@ -75,9 +68,6 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
         
         // 连接成功后更新状态
         setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
-        
-        // 调用外部连接回调
-        onAccessoryConnect?.(deviceType);
       } else {
         console.log('No saved heart rate device found, scanning for new devices...');
         
@@ -89,9 +79,6 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
         
         // 连接成功后更新状态
         setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
-        
-        // 调用外部连接回调
-        onAccessoryConnect?.(deviceType);
       }
     } catch (error) {
       console.error('Heart rate connection error:', error);
@@ -107,9 +94,6 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
       
       // 更新状态为断开
       setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));
-      
-      // 调用外部断开连接回调
-      onAccessoryDisconnect?.(deviceType);
     } catch (error) {
       console.error('Heart rate disconnection error:', error);
     }

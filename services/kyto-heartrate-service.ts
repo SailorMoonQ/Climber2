@@ -154,7 +154,7 @@ class KYTOHeartRateServiceInstance {
         }
 
         // 检查是否是KYTO心率设备
-        if (scannedDevice && 
+        if (scannedDevice &&
             (scannedDevice.name?.includes('KYTO') || scannedDevice.localName?.includes('KYTO'))) {
           console.log('KYTO heart rate device found:', scannedDevice.name);
 

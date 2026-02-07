@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { CountdownOverlay } from './countdown-overlay';
+import { PauseModal } from './pause-modal';
+import { EndModal } from './end-modal';
 
 interface StartStopControlsProps {
   isExerciseStarted: boolean;
@@ -9,6 +11,7 @@ interface StartStopControlsProps {
   onStart: () => void;
   onPauseResume: () => void;
   onEnd: () => void;
+  onPausedChange: (isPaused: boolean) => void;
 }
 
 export const StartStopControls: React.FC<StartStopControlsProps> = ({
@@ -17,14 +20,73 @@ export const StartStopControls: React.FC<StartStopControlsProps> = ({
   onStart,
   onPauseResume,
   onEnd,
+  onPausedChange,
 }) => {
   const [countdownVisible, setCountdownVisible] = useState(false);
   const [countdown, setCountdown] = useState(3);
+  const [isPauseModalVisible, setIsPauseModalVisible] = useState(false);
+  const [isEndModalVisible, setIsEndModalVisible] = useState(false);
+  const [isSavingData, setIsSavingData] = useState(false);
 
   // 处理开始运动按钮点击
   const handleStartPress = () => {
     setCountdownVisible(true);
     setCountdown(3);
+  };
+
+  // 处理暂停按钮点击
+  const handlePausePress = () => {
+    // 点击暂停按钮，先设置暂停状态再显示弹窗
+    onPauseResume();
+    onPausedChange(true);
+    setIsPauseModalVisible(true);
+  };
+
+  // 处理继续运动（从弹窗）
+  const handleResumeFromModal = () => {
+    setIsPauseModalVisible(false);
+    onPauseResume();
+    onPausedChange(false);
+  };
+
+  // 处理结束运动（从暂停弹窗）
+  const handleEndFromModal = () => {
+    setIsPauseModalVisible(false);
+    // 从暂停弹窗点击结束运动时，显示结束弹窗
+    setIsEndModalVisible(true);
+    setIsSavingData(true);
+
+    // 模拟数据存储过程
+    setTimeout(() => {
+      setIsSavingData(false);
+      // 存储运动数据的逻辑可以在这里实现
+      console.log('运动数据已保存');
+      // 关闭弹窗并重置状态
+      setTimeout(() => {
+        setIsEndModalVisible(false);
+        onEnd();
+        onPausedChange(false);
+      }, 1000);
+    }, 2000);
+  };
+
+  // 处理结束运动按钮点击
+  const handleEndPress = () => {
+    setIsEndModalVisible(true);
+    setIsSavingData(true);
+
+    // 模拟数据存储过程
+    setTimeout(() => {
+      setIsSavingData(false);
+      // 存储运动数据的逻辑可以在这里实现
+      console.log('运动数据已保存');
+      // 关闭弹窗并重置状态
+      setTimeout(() => {
+        setIsEndModalVisible(false);
+        onEnd();
+        onPausedChange(false);
+      }, 1000);
+    }, 2000);
   };
 
   // 倒计时效果
@@ -58,7 +120,7 @@ export const StartStopControls: React.FC<StartStopControlsProps> = ({
           <View style={styles.exerciseControls}>
             <TouchableOpacity
               style={styles.controlButton}
-              onPress={onPauseResume}
+              onPress={isPaused ? handleResumeFromModal : handlePausePress}
             >
               <ThemedText style={styles.controlButtonText}>
                 {isPaused ? '继续运动' : '暂停'}
@@ -66,7 +128,7 @@ export const StartStopControls: React.FC<StartStopControlsProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.controlButton, styles.endButton]}
-              onPress={onEnd}
+              onPress={handleEndPress}
             >
               <ThemedText style={styles.controlButtonText}>
                 结束运动
@@ -80,6 +142,19 @@ export const StartStopControls: React.FC<StartStopControlsProps> = ({
       <CountdownOverlay
         visible={countdownVisible}
         countdown={countdown}
+      />
+
+      {/* 暂停运动弹窗 */}
+      <PauseModal
+        visible={isPauseModalVisible}
+        onContinue={handleResumeFromModal}
+        onEnd={handleEndFromModal}
+      />
+
+      {/* 结束运动弹窗 */}
+      <EndModal
+        visible={isEndModalVisible}
+        isSavingData={isSavingData}
       />
     </>
   );

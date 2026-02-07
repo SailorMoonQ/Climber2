@@ -12,8 +12,6 @@ import DatabaseService from '@/services/database-service';
 import { User } from '@/interface/user.interface';
 
 import { StartStopControls } from "@/components/ui/start-stop-controls";
-import { PauseModal } from "@/components/ui/pause-modal";
-import { EndModal } from "@/components/ui/end-modal";
 import { AccessoryModal } from "@/components/ui/accessory-modal";
 import { TargetSettingModal } from "@/components/ui/target-setting-modal";
 import { useUser } from '@/contexts/UserContext';
@@ -34,21 +32,14 @@ export default function ExerciseScreen() {
   const [lowerResistance, setLowerResistance] = useState(4);
   const [isExerciseStarted, setIsExerciseStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [exerciseTime, setExerciseTime] = useState(60); // 1分钟
+  const [exerciseTime, setExerciseTime] = useState(60);
   const [remainingTime, setRemainingTime] = useState(60);
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
   const [isTargetSettingModalVisible, setIsTargetSettingModalVisible] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<string>('力量'); // 默认选中力量模式
+  const [selectedMode, setSelectedMode] = useState<string>('力量');
   const [trainingTargets, setTrainingTargets] = useState({ duration: 300, distance: 500, calories: 500 });
-  const [accessories, setAccessories] = useState([
-    { id: 'hr1', name: '心率带 SHD213', status: 'connected' as const, value: '72' },
-    { id: 'pose1', name: '体姿态 A1313123', status: 'connecting' as const },
-    { id: 'hr2', name: '心率带 SHD213', status: 'disconnected' as const },
-  ]);
   const [heartRateAlert, setHeartRateAlert] = useState(false);
-  const [isPauseModalVisible, setIsPauseModalVisible] = useState(false);
-  const [isEndModalVisible, setIsEndModalVisible] = useState(false);
-  const [isSavingData, setIsSavingData] = useState(false);
+  
 
   // 蓝牙功能
   const {sendResistanceData} = useBluetooth();
@@ -61,7 +52,6 @@ export default function ExerciseScreen() {
 
   // 处理开始运动
   const handleStartExercise = () => {
-    // 现在倒计时逻辑在StartStopControls组件中处理
     // 这里直接开始运动
     setIsExerciseStarted(true);
     setIsPaused(false);
@@ -70,40 +60,13 @@ export default function ExerciseScreen() {
 
   // 处理暂停/继续运动
   const handlePauseResumeExercise = () => {
-    if (!isPaused) {
-      // 点击暂停按钮，先设置暂停状态再显示弹窗
-      setIsPaused(true);
-      setIsPauseModalVisible(true);
-    } else {
-      // 从暂停状态继续运动
-      setIsPaused(false);
-    }
+    // 简单切换暂停状态，具体逻辑现在由StartStopControls组件处理
+    setIsPaused(prev => !prev);
   };
 
-  // 处理继续运动（从弹窗）
-  const handleResumeFromModal = () => {
-    setIsPauseModalVisible(false);
-    setIsPaused(false);
-  };
-
-  // 处理结束运动（从弹窗）
-  const handleEndFromModal = () => {
-    setIsPauseModalVisible(false);
-    // 从暂停弹窗点击结束运动时，倒计时已经暂停，直接显示结束弹窗
-    setIsEndModalVisible(true);
-    setIsSavingData(true);
-
-    // 模拟数据存储过程
-    setTimeout(() => {
-      setIsSavingData(false);
-      // 存储运动数据的逻辑可以在这里实现
-      console.log('运动数据已保存');
-      // 关闭弹窗并重置状态
-      setTimeout(() => {
-        setIsEndModalVisible(false);
-        handleEndExercise();
-      }, 1000);
-    }, 2000);
+  // 处理暂停状态变化
+  const handlePausedChange = (isPaused: boolean) => {
+    setIsPaused(isPaused);
   };
 
   // 处理结束运动
@@ -266,49 +229,16 @@ export default function ExerciseScreen() {
         isPaused={isPaused}
         onStart={handleStartExercise}
         onPauseResume={handlePauseResumeExercise}
-        onEnd={() => {
-          setIsEndModalVisible(true);
-          setIsSavingData(true);
-
-          // 模拟数据存储过程
-          setTimeout(() => {
-            setIsSavingData(false);
-            // 存储运动数据的逻辑可以在这里实现
-            console.log('运动数据已保存');
-            // 关闭弹窗并重置状态
-            setTimeout(() => {
-              setIsEndModalVisible(false);
-              handleEndExercise();
-            }, 1000);
-          }, 2000);
-        }}
+        onEnd={handleEndExercise}
+        onPausedChange={handlePausedChange}
       ></StartStopControls>
-
-      
 
       {/* 连接配件弹窗 */}
       <AccessoryModal
         visible={isAccessoryModalVisible}
         onClose={() => setIsAccessoryModalVisible(false)}
-        maxHeartRate={150}
-        targetHeartRateRange={[100, 130]}
-        accessories={accessories}
         selectedMode={selectedMode}
       />
-
-      {/* 暂停运动弹窗 */}
-      <PauseModal
-        visible={isPauseModalVisible}
-        onContinue={handleResumeFromModal}
-        onEnd={handleEndFromModal}
-      >
-      </PauseModal>
-
-      {/* 结束运动弹窗 */}
-      <EndModal
-        visible={isEndModalVisible}
-        isSavingData={isSavingData}
-      ></EndModal>
 
       {/* 目标设置弹窗 */}
       <TargetSettingModal

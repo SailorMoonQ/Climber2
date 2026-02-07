@@ -92,7 +92,7 @@ class WitMotionServiceInstance {
         [{ name: DEVICE_NAME, localName: DEVICE_NAME }],
         async (scannedDevice) => {
           // 当找到设备时，停止扫描并连接
-          console.log('Wit Motion device found:', scannedDevice.name);
+          console.log('Wit Motion device found:', scannedDevice);
           await BLEService.stopScan();
           await this.connectToDevice(scannedDevice);
         }

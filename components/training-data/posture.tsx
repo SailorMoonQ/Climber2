@@ -48,13 +48,13 @@ export const Posture: React.FC<PostureProps> = ({
         {/* 姿态图标 */}
         <ThemedView style={styles.postureIcons}>
           <Ionicons name="body-outline" size={40} color={tintColor} />
-          <ThemedView 
+          <ThemedView
             style={[styles.statusCircle, { backgroundColor: isConnected ? '#4CAF50' : '#E0E0E0', marginRight: 10 }]}
           >
-            <Ionicons 
-              name={isConnected ? "checkmark" : "close"} 
-              size={12} 
-              color="white" 
+            <Ionicons
+              name={isConnected ? "checkmark" : "close"}
+              size={12}
+              color="white"
             />
           </ThemedView>
         </ThemedView>
@@ -68,19 +68,19 @@ export const Posture: React.FC<PostureProps> = ({
         {isConnected && poseData && (
           <ThemedView style={styles.anglesContainer}>
             <ThemedView style={styles.angleItem}>
-              <ThemedText style={styles.angleLabel}>Pitch(俯仰角)</ThemedText>
+              <ThemedText style={styles.angleLabel}>Pitch</ThemedText>
               <ThemedText style={[styles.angleValue, { color: tintColor }]}>
                 {formatAngle(poseData.pitch)}°
               </ThemedText>
             </ThemedView>
             <ThemedView style={styles.angleItem}>
-              <ThemedText style={styles.angleLabel}>Roll(横滚角)</ThemedText>
+              <ThemedText style={styles.angleLabel}>Roll</ThemedText>
               <ThemedText style={[styles.angleValue, { color: tintColor }]}>
                 {formatAngle(poseData.roll)}°
               </ThemedText>
             </ThemedView>
             <ThemedView style={styles.angleItem}>
-              <ThemedText style={styles.angleLabel}>Yaw(偏航角)</ThemedText>
+              <ThemedText style={styles.angleLabel}>Yaw</ThemedText>
               <ThemedText style={[styles.angleValue, { color: tintColor }]}>
                 {formatAngle(poseData.yaw)}°
               </ThemedText>

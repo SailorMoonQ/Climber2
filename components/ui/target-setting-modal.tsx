@@ -12,12 +12,14 @@ export interface TargetSettingModalProps {
   visible: boolean;
   onClose: (targets: TargetSetting | null) => void;
   initialTargets?: TargetSetting;
+  showOnlyDistance?: boolean;
 }
 
 export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
   visible,
   onClose,
   initialTargets = { duration: 300, distance: 100, calories: 500 }, // 默认5分钟、100米、500千卡
+  showOnlyDistance = false,
 }) => {
   const [targets, setTargets] = useState<TargetSetting>(initialTargets);
 
@@ -83,42 +85,44 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
           <ThemedText style={styles.modalTitle}>运动目标</ThemedText>
 
           {/* 运动时长设置 */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingItemTitle}>
-              <ThemedText style={styles.settingLabel}>运动时长</ThemedText>
-              <View style={styles.settingValueContainer}>
-                <TextInput
-                  style={styles.settingInput}
-                  value={formatDuration(targets.duration)}
-                  editable={false}
-                />
+          {!showOnlyDistance && (
+            <View style={styles.settingItem}>
+              <View style={styles.settingItemTitle}>
+                <ThemedText style={styles.settingLabel}>运动时长</ThemedText>
+                <View style={styles.settingValueContainer}>
+                  <TextInput
+                    style={styles.settingInput}
+                    value={formatDuration(targets.duration)}
+                    editable={false}
+                  />
+                </View>
+              </View>
+              <View style={styles.settingOptions}>
+                {[5, 10, 20, 30].map(minutes => (
+                  <TouchableOpacity
+                    key={`duration-${minutes}`}
+                    style={[
+                      styles.settingOption,
+                      Math.floor(targets.duration / 60) === minutes && styles.activeOption,
+                    ]}
+                    onPress={() => handleDurationSelect(minutes)}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.settingOptionText,
+                        Math.floor(targets.duration / 60) === minutes && styles.activeOptionText,
+                      ]}
+                    >
+                      {minutes}:00
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
-            <View style={styles.settingOptions}>
-              {[5, 10, 20, 30].map(minutes => (
-                <TouchableOpacity
-                  key={`duration-${minutes}`}
-                  style={[
-                    styles.settingOption,
-                    Math.floor(targets.duration / 60) === minutes && styles.activeOption,
-                  ]}
-                  onPress={() => handleDurationSelect(minutes)}
-                >
-                  <ThemedText
-                    style={[
-                      styles.settingOptionText,
-                      Math.floor(targets.duration / 60) === minutes && styles.activeOptionText,
-                    ]}
-                  >
-                    {minutes}:00
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          )}
 
           {/* 攀爬距离设置 */}
-          <View style={styles.settingItem}>
+          <View style={[styles.settingItem, showOnlyDistance && styles.settingItemLast]}>
             <View style={styles.settingItemTitle}>
               <ThemedText style={styles.settingLabel}>攀爬距离(m)</ThemedText>
               <View style={styles.settingValueContainer}>
@@ -154,40 +158,42 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
           </View>
 
           {/* 能量消耗设置 */}
-          <View style={[styles.settingItem, styles.settingItemLast]}>
-            <View style={styles.settingItemTitle}>
-              <ThemedText style={styles.settingLabel}>能量消耗(kcal)</ThemedText>
-              <View style={styles.settingValueContainer}>
-                <TextInput
-                  style={styles.settingInput}
-                  value={targets.calories.toString()}
-                  keyboardType="numeric"
-                  onChangeText={handleCaloriesInput}
-                />
+          {!showOnlyDistance && (
+            <View style={[styles.settingItem, styles.settingItemLast]}>
+              <View style={styles.settingItemTitle}>
+                <ThemedText style={styles.settingLabel}>能量消耗(kcal)</ThemedText>
+                <View style={styles.settingValueContainer}>
+                  <TextInput
+                    style={styles.settingInput}
+                    value={targets.calories.toString()}
+                    keyboardType="numeric"
+                    onChangeText={handleCaloriesInput}
+                  />
+                </View>
+              </View>
+              <View style={styles.settingOptions}>
+                {[100, 200, 500, 1000].map(kcal => (
+                  <TouchableOpacity
+                    key={`calories-${kcal}`}
+                    style={[
+                      styles.settingOption,
+                      targets.calories === kcal && styles.activeOption,
+                    ]}
+                    onPress={() => handleCaloriesSelect(kcal)}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.settingOptionText,
+                        targets.calories === kcal && styles.activeOptionText,
+                      ]}
+                    >
+                      {kcal}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
-            <View style={styles.settingOptions}>
-              {[100, 200, 500, 1000].map(kcal => (
-                <TouchableOpacity
-                  key={`calories-${kcal}`}
-                  style={[
-                    styles.settingOption,
-                    targets.calories === kcal && styles.activeOption,
-                  ]}
-                  onPress={() => handleCaloriesSelect(kcal)}
-                >
-                  <ThemedText
-                    style={[
-                      styles.settingOptionText,
-                      targets.calories === kcal && styles.activeOptionText,
-                    ]}
-                  >
-                    {kcal}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          )}
 
           {/* 提示信息 */}
           <ThemedText style={styles.hintText}>

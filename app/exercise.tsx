@@ -15,6 +15,7 @@ import { StartStopControls } from "@/components/ui/start-stop-controls";
 import { PauseModal } from "@/components/ui/pause-modal";
 import { EndModal } from "@/components/ui/end-modal";
 import { AccessoryModal } from "@/components/ui/accessory-modal";
+import { TargetSettingModal } from "@/components/ui/target-setting-modal";
 import { useUser } from '@/contexts/UserContext';
 
 export default function ExerciseScreen() {
@@ -36,7 +37,9 @@ export default function ExerciseScreen() {
   const [exerciseTime, setExerciseTime] = useState(60); // 1分钟
   const [remainingTime, setRemainingTime] = useState(60);
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
+  const [isTargetSettingModalVisible, setIsTargetSettingModalVisible] = useState(false);
   const [selectedMode, setSelectedMode] = useState<string>('力量'); // 默认选中力量模式
+  const [trainingTargets, setTrainingTargets] = useState({ duration: 300, distance: 500, calories: 500 });
   const [accessories, setAccessories] = useState([
     { id: 'hr1', name: '心率带 SHD213', status: 'connected' as const, value: '72' },
     { id: 'pose1', name: '体姿态 A1313123', status: 'connecting' as const },
@@ -236,8 +239,8 @@ export default function ExerciseScreen() {
         <Distance
           style={styles.distance}
           distance={climbingDistance}
-          targetDistance={500}
-          onTargetPress={() => setIsAccessoryModalVisible(true)}
+          targetDistance={trainingTargets.distance}
+          onTargetPress={() => setIsTargetSettingModalVisible(true)}
         />
 
         {/* 阻力控制 */}
@@ -306,6 +309,21 @@ export default function ExerciseScreen() {
         visible={isEndModalVisible}
         isSavingData={isSavingData}
       ></EndModal>
+
+      {/* 目标设置弹窗 */}
+      <TargetSettingModal
+        visible={isTargetSettingModalVisible}
+        initialTargets={trainingTargets}
+        showOnlyDistance={true}
+        onClose={(targets) => {
+          setIsTargetSettingModalVisible(false);
+          if (targets) {
+            setTrainingTargets(targets);
+            // 更新距离目标
+            // 这里可以根据需要添加其他逻辑
+          }
+        }}
+      />
     </ThemedView>
   );
 }

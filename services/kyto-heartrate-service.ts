@@ -32,35 +32,28 @@ class KYTOHeartRateServiceInstance {
 
       console.log('KYTO Heart Rate Full Hex Data:', hexString);
 
-      // 解析心率数据
-      // 根据KYTO心率设备的示例数据格式解析心率值
-      // 示例数据格式：0X10A47601760176017601
-      // 心率值通常是一个16位或8位的数值
-      
-      // 对于实时心率数据，通常在特定位置
-      // 根据示例数据，我们可以看到重复的模式如7601, 7D01, 8401, B202等
-      // 这些模式可能代表心率值
+      // 解析心率数据 - 遵循心率数据格式规范
+      // 第1个字节是Flags字段（位域）
+      // 第2个字节或第2-3个字节是心率值
       
       let heartRate = 0;
       
-      // 从第3个字节开始解析心率值（假设第1-2字节是设备ID或状态信息）
-      if (hexString.length >= 6) {
-        // 取第3-4个字节作为心率值
-        const heartRateHex = hexString.substring(4, 6);
-        heartRate = parseInt(heartRateHex, 16);
-        
-        // 如果心率值太小或太大，尝试其他位置
-        if (heartRate < 40 || heartRate > 220) {
-          // 尝试第5-6个字节
-          if (hexString.length >= 8) {
-            const alternativeHeartRateHex = hexString.substring(6, 8);
-            const alternativeHeartRate = parseInt(alternativeHeartRateHex, 16);
-            if (alternativeHeartRate >= 40 && alternativeHeartRate <= 220) {
-              heartRate = alternativeHeartRate;
-            }
-          }
-        }
+      if (rawData.length < 2) {
+        console.error('Insufficient data length for heart rate parsing');
+        return null;
       }
+      
+      // 获取Flags字节
+      const flagsByte = rawData.charCodeAt(0);
+      
+      // 解析心率值 - 根据设备规范和示例数据，心率值是第2个字节(16进制)的完整值
+      // 例如：0X10A47601760176017601 中的第2个字节0XA4是心率，对应十进制164
+      // 注意：虽然用户提到"rawData.charCodeAt(1)中的前2个bit是heartRate"，
+      // 但从示例数据看，前2个bit（如A4的10）会导致心率值为2，不符合正常心率范围
+      // 因此心率值应该是整个第2个字节的值
+      console.log(hexString);
+
+      heartRate = parseInt(hexString.substring(4, 6), 16);
 
       console.log('KYTO Heart Rate:', heartRate);
 

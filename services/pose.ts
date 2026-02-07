@@ -39,24 +39,28 @@ export const parsePoseData = (characteristicValue: string): PoseData | null => {
 
     // Parse each angle (2 bytes per angle, little-endian)
     // Each angle is a signed 16-bit integer with resolution 0.1 degrees
-    const pitchHex = last12Chars.substring(0, 4);
-    const rollHex = last12Chars.substring(4, 8);
+    const rollHex = last12Chars.substring(0, 4);
+    const pitchHex = last12Chars.substring(4, 8);
     const yawHex = last12Chars.substring(8, 12);
 
-    // Convert hex to signed integer (little-endian)
-    const pitchRaw = parseInt(pitchHex.substring(2, 4) + pitchHex.substring(0, 2), 16);
-    const rollRaw = parseInt(rollHex.substring(2, 4) + rollHex.substring(0, 2), 16);
-    const yawRaw = parseInt(yawHex.substring(2, 4) + yawHex.substring(0, 2), 16);
+    // Calculate roll using user-specified formula: ((RollH<<8)|RollL)/32768*180
+    // RollH is high byte, RollL is low byte (little-endian format)
+    const rollL = parseInt(rollHex.substring(0, 2), 16);
+    const rollH = parseInt(rollHex.substring(2, 4), 16);
+    const pitchL = parseInt(pitchHex.substring(0, 2), 16);
+    const pitchH = parseInt(pitchHex.substring(2, 4), 16);
+    const yawL = parseInt(yawHex.substring(0, 2), 16);
+    const yawH = parseInt(yawHex.substring(2, 4), 16);
 
-    // Convert to signed 16-bit integer
-    const signedPitch = pitchRaw > 32767 ? pitchRaw - 65536 : pitchRaw;
-    const signedRoll = rollRaw > 32767 ? rollRaw - 65536 : rollRaw;
-    const signedYaw = yawRaw > 32767 ? yawRaw - 65536 : yawRaw;
+    // Combine high and low bytes to get 16-bit value
+    let rollCombined = (rollH << 8) | rollL;
+    const pitchCombined = (pitchH << 8) | pitchL;
+    const yawCombined = (yawH << 8) | yawL;
 
-    // Convert to degrees (divide by 10 for 0.1 degree resolution)
-    const pitch = signedPitch / 10;
-    const roll = signedRoll / 10;
-    const yaw = signedYaw / 10;
+
+    const roll = rollCombined / 32768 * 180;
+    const pitch = pitchCombined / 32768 * 180;
+    const yaw = yawCombined / 32768 * 180;
 
     // Create data object
     return {

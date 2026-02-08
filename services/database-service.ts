@@ -5,6 +5,9 @@ import { ExerciseRecord } from "@/interface/exercise-record.interface";
 // 创建数据库连接
 const db = SQLite.openDatabaseSync('climber.db');
 
+// 数据库是否已经初始化完成
+let isDatabaseInitialized = false;
+
 class DatabaseService {
   // 初始化数据库表
   static async init() {
@@ -22,7 +25,7 @@ class DatabaseService {
         );
       `);
 
-      // 创建运动记录表
+      // 创建运动记录表（兼容旧版本）
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS exercise_records (
           id TEXT PRIMARY KEY NOT NULL,
@@ -39,8 +42,28 @@ class DatabaseService {
         );
       `);
 
+      // 检查并添加新字段（用于数据库迁移）
+      try {
+        // 尝试添加trainingTargets字段
+        await db.execAsync(`
+          ALTER TABLE exercise_records ADD COLUMN trainingTargets TEXT NOT NULL DEFAULT '{}';
+        `);
+      } catch (error) {
+        console.log('trainingTargets column already exists or could not be added:', error);
+      }
+
+      try {
+        // 尝试添加detailedData字段
+        await db.execAsync(`
+          ALTER TABLE exercise_records ADD COLUMN detailedData TEXT NOT NULL DEFAULT '[]';
+        `);
+      } catch (error) {
+        console.log('detailedData column already exists or could not be added:', error);
+      }
+
       // 添加一些初始数据
       await DatabaseService.seedInitialData();
+      isDatabaseInitialized = true;
     } catch (error) {
       console.error('Failed to initialize database:', error);
     }
@@ -77,6 +100,8 @@ class DatabaseService {
           averageSpeed: 10.4,
           maxSpeed: 15.2,
           heartRate: { avg: 145, max: 175 },
+          trainingTargets: {},
+          detailedData: [],
         },
         {
           id: '2',
@@ -89,6 +114,8 @@ class DatabaseService {
           averageSpeed: 11.4,
           maxSpeed: 16.8,
           heartRate: { avg: 152, max: 180 },
+          trainingTargets: {},
+          detailedData: [],
         },
         {
           id: '3',
@@ -101,12 +128,14 @@ class DatabaseService {
           averageSpeed: 10.0,
           maxSpeed: 14.5,
           heartRate: { avg: 138, max: 165 },
+          trainingTargets: {},
+          detailedData: [],
         },
       ];
 
       for (const record of exerciseRecords) {
         await db.runAsync(
-          'INSERT INTO exercise_records (id, userId, date, type, duration, distance, calories, averageSpeed, maxSpeed, heartRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO exercise_records (id, userId, date, type, duration, distance, calories, averageSpeed, maxSpeed, heartRate, trainingTargets, detailedData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
             record.id,
             record.userId,
@@ -118,6 +147,8 @@ class DatabaseService {
             record.averageSpeed,
             record.maxSpeed,
             JSON.stringify(record.heartRate),
+            JSON.stringify(record.trainingTargets || {}),
+            JSON.stringify(record.detailedData || []),
           ]
         );
       }
@@ -127,6 +158,10 @@ class DatabaseService {
   // 用户相关操作
   static async getAllUsers(): Promise<User[]> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       const result = await db.getAllAsync<User>('SELECT * FROM users');
       return result;
     } catch (error) {
@@ -137,6 +172,10 @@ class DatabaseService {
 
   static async getUserById(id: string): Promise<User | null> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       const result = await db.getFirstAsync<User>('SELECT * FROM users WHERE id = ?', [id]);
       return result;
     } catch (error) {
@@ -147,6 +186,10 @@ class DatabaseService {
 
   static async addUser(userData: Omit<User, 'id'>): Promise<User> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       const id = Date.now().toString(); // 使用时间戳生成唯一ID
       await db.runAsync(
         'INSERT INTO users (id, name, age, gender, height, weight, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -161,6 +204,10 @@ class DatabaseService {
 
   static async updateUser(user: User): Promise<boolean> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       await db.runAsync(
         'UPDATE users SET name = ?, age = ?, gender = ?, height = ?, weight = ?, avatar = ? WHERE id = ?',
         [user.name, user.age, user.gender, user.height, user.weight, user.avatar, user.id]
@@ -174,6 +221,10 @@ class DatabaseService {
 
   static async deleteUser(id: string): Promise<boolean> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       await db.runAsync('DELETE FROM users WHERE id = ?', [id]);
       return true;
     } catch (error) {
@@ -185,10 +236,16 @@ class DatabaseService {
   // 运动记录相关操作
   static async getExerciseRecordsByUserId(userId: string): Promise<ExerciseRecord[]> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       const result = await db.getAllAsync<any>('SELECT * FROM exercise_records WHERE userId = ? ORDER BY date DESC', [userId]);
       return result.map(record => ({
         ...record,
         heartRate: JSON.parse(record.heartRate),
+        trainingTargets: JSON.parse(record.trainingTargets),
+        detailedData: JSON.parse(record.detailedData),
       }));
     } catch (error) {
       console.error('Failed to get exercise records:', error);
@@ -198,8 +255,12 @@ class DatabaseService {
 
   static async addExerciseRecord(record: ExerciseRecord): Promise<boolean> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       await db.runAsync(
-        'INSERT INTO exercise_records (id, userId, date, type, duration, distance, calories, averageSpeed, maxSpeed, heartRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO exercise_records (id, userId, date, type, duration, distance, calories, averageSpeed, maxSpeed, heartRate, trainingTargets, detailedData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           record.id,
           record.userId,
@@ -211,6 +272,8 @@ class DatabaseService {
           record.averageSpeed,
           record.maxSpeed,
           JSON.stringify(record.heartRate),
+          JSON.stringify(record.trainingTargets || {}),
+          JSON.stringify(record.detailedData || []),
         ]
       );
       return true;
@@ -222,6 +285,10 @@ class DatabaseService {
 
   static async deleteExerciseRecord(id: string): Promise<boolean> {
     try {
+      // 确保数据库已经初始化
+      if (!isDatabaseInitialized) {
+        await DatabaseService.init();
+      }
       await db.runAsync('DELETE FROM exercise_records WHERE id = ?', [id]);
       return true;
     } catch (error) {

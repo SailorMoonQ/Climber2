@@ -124,7 +124,7 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
   const handlePostureDisconnection = async (deviceType: string) => {
     try {
       // 断开体姿设备连接
-      await WitMotionService.disconnect();
+      WitMotionService.disconnect();
       
       // 更新状态为断开
       setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'disconnected' }));

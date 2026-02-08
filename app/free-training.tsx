@@ -20,6 +20,10 @@ import { ForceBar } from "@/components/force-bar";
 import { Distance } from "@/components/training-data/distance";
 import { AccessoryModal } from "@/components/ui/accessory-modal";
 import { User } from "@/interface/user.interface";
+import { BLEService } from '@/services/bluetooth';
+import { ForceService } from '@/services/force-service';
+import { KYTOHeartRateService } from '@/services/kyto-heartrate-service';
+import { WitMotionService } from '@/services/wit-motion-service';
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
@@ -72,6 +76,7 @@ export default function FreeTrainingScreen() {
   const [currentDistance, setCurrentDistance] = useState(0); // 距离（m）
   const [currentCalories, setCurrentCalories] = useState(0); // 能量消耗（kcal）
   const [currentHeartRate, setCurrentHeartRate] = useState(0); // 心率（bpm）
+  const [detailedData, setDetailedData] = useState<{ time: number; heartRate: number; speed: number }[]>([]); // 详细数据（每秒记录）
 
   // 力量数据
   const [leftHandForce, setLeftHandForce] = useState(20.2); // 左手力（N）
@@ -89,8 +94,7 @@ export default function FreeTrainingScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({title: `动态姿势评估 ${user?.name || userId}`});
   }, [navigation, userId, user]);
-  
-  // 计时器
+
   useEffect(() => {
     let interval: any;
     if (trainingStarted && !isPaused) {
@@ -100,6 +104,48 @@ export default function FreeTrainingScreen() {
     }
     return () => clearInterval(interval);
   }, [trainingStarted, isPaused]);
+
+  // 每秒记录详细数据（心率和速度）
+  useEffect(() => {
+    let interval: any;
+    if (trainingStarted && !isPaused) {
+      interval = setInterval(() => {
+        // 随机生成心率和速度数据（实际项目中应从传感器获取）
+        const heartRate = Math.floor(Math.random() * 30) + 90;
+        const speed = Math.random() * 5 + 2;
+        
+        setCurrentHeartRate(heartRate);
+        setCurrentSpeed(speed);
+        
+        // 更新平均速度
+        setAverageSpeed(prev => {
+          const totalSpeed = prev * currentDuration + speed;
+          return totalSpeed / (currentDuration + 1);
+        });
+        
+        // 更新距离
+        setCurrentDistance(prev => prev + speed);
+        
+        // 更新能量消耗（简单模拟）
+        setCurrentCalories(prev => prev + Math.random() * 0.5 + 0.5);
+        
+        // 记录详细数据
+        setDetailedData(prev => [...prev, {
+          time: currentDuration + 1,
+          heartRate,
+          speed
+        }]);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [trainingStarted, isPaused, currentDuration]);
+
+  // 运动开始时重置详细数据
+  useEffect(() => {
+    if (trainingStarted) {
+      setDetailedData([]);
+    }
+  }, [trainingStarted]);
   
   const handleStartTraining = useCallback(() => {
     setTrainingStarted(true);
@@ -115,11 +161,46 @@ export default function FreeTrainingScreen() {
     setIsPaused(isPaused);
   }, []);
 
-  const handleStopTraining = useCallback(() => {
-    // 简单结束训练，具体弹窗逻辑现在由StartStopControls组件处理
+  const handleStopTraining = useCallback(async () => {
+    if (userId) {
+      // 计算最大心率和最大速度
+      const maxHeartRate = detailedData.length > 0 
+        ? Math.max(...detailedData.map(item => item.heartRate)) 
+        : currentHeartRate;
+      const maxSpeed = detailedData.length > 0 
+        ? Math.max(...detailedData.map(item => item.speed)) 
+        : currentSpeed;
+      
+      // 创建运动记录对象
+      const exerciseRecord = {
+        id: Date.now().toString(),
+        userId,
+        date: new Date().toISOString().split('T')[0],
+        type: '自由训练',
+        duration: currentDuration,
+        distance: currentDistance,
+        calories: Math.round(currentCalories),
+        averageSpeed: averageSpeed,
+        maxSpeed: maxSpeed,
+        heartRate: {
+          avg: Math.round(detailedData.length > 0 
+            ? detailedData.reduce((sum, item) => sum + item.heartRate, 0) / detailedData.length 
+            : currentHeartRate),
+          max: maxHeartRate
+        },
+        trainingTargets: trainingTargets || {},
+        detailedData: detailedData
+      };
+      
+      // 保存运动记录到数据库
+      await DatabaseService.addExerciseRecord(exerciseRecord);
+      console.log('运动记录已保存:', exerciseRecord);
+    }
+    
+    // 结束训练，重置状态
     setTrainingStarted(false);
     setIsPaused(false);
-  }, []);
+  }, [userId, currentDuration, currentDistance, currentCalories, averageSpeed, currentHeartRate, trainingTargets, detailedData]);
 
   const handleUpdateParams = useCallback(() => {
     setShowControlPanel(false);
@@ -129,6 +210,29 @@ export default function FreeTrainingScreen() {
   const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
 
   const [selectedMode, setSelectedMode] = useState('有氧');
+
+  // 组件卸载时清理所有资源
+  useEffect(() => {
+    return () => {
+      console.log('FreeTrainingScreen component unmounting, cleaning up all resources...');
+
+      // 停止训练（如果正在进行）
+      if (trainingStarted) {
+        void handleStopTraining();
+      }
+
+      try {
+        // 清理所有蓝牙资源
+        BLEService.clearAllSubscriptions();
+        void BLEService.disconnectAllDevices();
+        void ForceService.disconnect();
+        void KYTOHeartRateService.disconnect();
+        void WitMotionService.disconnect();
+      } catch (error) {
+        console.error('Error during Bluetooth cleanup:', error);
+      }
+    };
+  }, [trainingStarted, handleStopTraining]);
 
   return (
     <ThemedView style={styles.container}>

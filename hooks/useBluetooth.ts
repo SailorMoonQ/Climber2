@@ -43,19 +43,31 @@ const useBluetooth = () => {
   const [scanning, setScanning] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!BLEService.manager) {
+      console.error('BLE Service manager is not initialized');
+      setConnectionStatus(BluetoothConnectionStatus.ERROR);
+      return;
+    }
+    
     try {
       const subscription = BLEService.manager!.onStateChange((state) => {
         setIsEnabled(state === State.PoweredOn);
         if (state === State.PoweredOff) {
           stopScan();
+          setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
         }
       }, true);
 
       return () => {
-        subscription.remove();
+        try {
+          subscription.remove();
+        } catch (unsubscribeError) {
+          console.error('Error removing state change subscription:', unsubscribeError);
+        }
       };
     } catch (error) {
-      console.error('Failed to initialize Bluetooth manager:', error);
+      console.error('Failed to initialize Bluetooth manager:', error?.toString() || error);
+      setConnectionStatus(BluetoothConnectionStatus.ERROR);
     }
   }, []);
 
@@ -111,12 +123,13 @@ const useBluetooth = () => {
         }
       );
     } catch (error: any) {
-      console.error('Failed to start scan:', error);
+      console.error('Failed to start scan:', error?.toString() || error);
       // Check if the error is a BleError and log its reason
-      if (error.hasOwnProperty('reason')) {
+      if (error?.hasOwnProperty('reason')) {
         console.error('BLE Error reason:', error.reason);
       }
       setScanning(false);
+      setConnectionStatus(BluetoothConnectionStatus.ERROR);
     }
   }, []);
 
@@ -158,43 +171,48 @@ const useBluetooth = () => {
       setConnectedDevice(newConnectedDevice);
       setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
 
-      // Set up notifications with error handling
+      // Set up notifications with enhanced error handling
       try {
-        newConnectedDevice.monitorCharacteristicForService(
+        // 使用BLEService的startNotifications方法，确保订阅被正确跟踪和清理
+        await BLEService.startNotifications(
+          newConnectedDevice,
           BLUETOOTH_SERVICES.MAIN_SERVICE,
           BLUETOOTH_CHARACTERISTICS.NOTIFY_CHARACTERISTIC,
-          (error, characteristic) => {
-            console.log(characteristic);
-            if (error) {
-              console.error('Monitor error:', error);
-              // Check if the error is a BleError and log its reason
-              if (error.hasOwnProperty('reason')) {
-                console.error('BLE Monitor Error reason:', error.reason);
+          (value) => {
+            // 处理接收到的数据
+            try {
+              // Check if the value contains an error object from the service
+              if (value && typeof value === 'object' && value.error) {
+                console.error('Notification error received:', value.error);
+                // Handle the notification error appropriately
+                setConnectionStatus(BluetoothConnectionStatus.ERROR);
+                return;
               }
-              return;
-            }
-
-            console.log(characteristic);
-            if (characteristic?.value) {
-              // 处理接收到的数据
-              const data = parseBluetoothNotificationData(characteristic.value);
-              handleReceivedData(data);
+              
+              const data = parseBluetoothNotificationData(value);
+              if (data) {
+                handleReceivedData(data);
+              }
+            } catch (parseError) {
+              console.error('Error processing notification data:', parseError);
             }
           }
         );
+        console.log('Connected successfully to Wit Motion device!', newConnectedDevice.name || newConnectedDevice.id);
       } catch (monitorError: any) {
-        console.error('Failed to set up characteristic monitoring:', monitorError);
-        // 即使监测设置失败，也要认为连接成功，因为主要连接已经建立
+        console.error('Failed to set up characteristic monitoring:', monitorError?.toString() || monitorError);
+        // Don't change connection status here as the main connection is successful
+        // Just log the error and continue
       }
 
       return true;
     } catch (error: any) {
-      console.error('Connection failed:', error);
+      console.error('Connection failed:', error?.toString() || error);
       // Check if the error is a BleError and log its reason
-      if (error.hasOwnProperty('reason')) {
+      if (error?.hasOwnProperty('reason')) {
         console.error('BLE Connection Error reason:', error.reason);
       }
-      setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
+      setConnectionStatus(BluetoothConnectionStatus.ERROR);
       return false;
     }
   }, [BLEService.manager, connectedDevice, setConnectedDevice, setConnectionStatus]);
@@ -205,15 +223,20 @@ const useBluetooth = () => {
     setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
 
     try {
+      // Stop notifications first to prevent errors during disconnection
+      BLEService.stopNotifications(connectedDevice.id);
+      
       await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
       setConnectedDevice(null);
       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
     } catch (error: any) {
-      console.error('Disconnection failed:', error);
-      // Check if the error is a BleError and log its reason
-      if (error.hasOwnProperty('reason')) {
+      console.error('Disconnection failed:', error?.toString() || error);
+      // Check if the error is a BleError and log its reason with null safety
+      if (error?.reason) {
         console.error('BLE Disconnection Error reason:', error.reason);
       }
+      // Ensure we still update the UI state even if disconnection fails
+      setConnectedDevice(null);
       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
     }
   }, [BLEService.manager, connectedDevice]);

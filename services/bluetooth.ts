@@ -84,10 +84,23 @@ class BLEServiceInstance {
   };
 
   private handleConnectionLoss = (deviceId: string) => {
+    if (!deviceId) {
+      console.warn('Connection lost with unknown device');
+      return;
+    }
+    
     console.warn(`Connection lost with device: ${deviceId}`);
     this.connectedDevices.delete(deviceId);
-    this.lastConnectedDeviceId = deviceId;
-    this.state = BLEStatus.DISCONNECTED;
+    
+    // 只在当前连接的设备是最后一个连接的设备时更新lastConnectedDeviceId
+    if (this.lastConnectedDeviceId === deviceId) {
+      this.lastConnectedDeviceId = null;
+    }
+    
+    // 只有在没有连接的设备时才更新状态
+    if (this.connectedDevices.size === 0) {
+      this.state = BLEStatus.DISCONNECTED;
+    }
   };
 
   init = async (): Promise<BleManager | null> => {
@@ -122,15 +135,29 @@ class BLEServiceInstance {
         this.notificationCallbacks.set(connectedDevice.id, callback);
       }
 
-      // Store the subscription
+      // Store the subscription with enhanced null-safe error handling
       const subscription = connectedDevice.monitorCharacteristicForService(
         serviceUUID,
         characteristicUUID,
         (error: BleError | null, characteristic: (Characteristic | null)) => {
+          // Enhanced null safety to prevent native crash
           if (error) {
-            console.error('Notification error for device', connectedDevice.id, ':', error);
-            // Handle connection loss due to notification error
-            this.handleConnectionLoss(connectedDevice.id);
+            // Ensure we don't pass null values to native methods - this is critical for preventing the NullPointerException
+            const errorMessage = error?.message || error?.reason || error?.toString() || 'Unknown notification error';
+            const errorCode = error?.errorCode || 'UNKNOWN_ERROR_CODE';
+            console.error('Notification error for device', connectedDevice.id, ':', errorCode, '-', errorMessage);
+            
+            // Prevent crashes by ensuring proper error format
+            try {
+              // Optionally notify the callback about the error if it handles errors
+              const deviceCallback = this.notificationCallbacks.get(connectedDevice.id);
+              if (deviceCallback) {
+                // Create a safe error object to pass to the callback
+                deviceCallback({ error: { code: errorCode, message: errorMessage } });
+              }
+            } catch (callbackError) {
+              console.error('Error in notification callback for device', connectedDevice.id, ':', callbackError);
+            }
             return;
           }
 
@@ -138,34 +165,50 @@ class BLEServiceInstance {
             // Pass raw data to callback - parsing should be done by specific service
             const deviceCallback = this.notificationCallbacks.get(connectedDevice.id);
             if (deviceCallback) {
-              deviceCallback(characteristic.value);
+              try {
+                deviceCallback(characteristic.value);
+              } catch (callbackError) {
+                console.error('Callback error for device', connectedDevice.id, ':', callbackError);
+              }
             }
           }
         }
       );
 
-      // Store the subscription with a unique key
-      const subscriptionKey = `notification_${connectedDevice.id}`;
+      // 使用更具体的订阅键，包含服务和特征UUID，确保可以精确管理每个设备的每个特征订阅
+      const subscriptionKey = `notification_${connectedDevice.id}_${serviceUUID}_${characteristicUUID}`;
       this.subscriptions.set(subscriptionKey, subscription);
+      console.log('Started notifications for device:', connectedDevice.id, 'with key:', subscriptionKey);
 
     } catch (error) {
-      console.error('Failed to start notifications for device', connectedDevice.id, ':', error);
+      console.error('Failed to start notifications for device', connectedDevice.id, ':', error?.toString() || error);
+      // Ensure we don't leave dangling references if the operation fails
+      this.notificationCallbacks.delete(connectedDevice.id);
     }
   };
 
   stopNotifications = (deviceId: string) => {
-    const subscriptionKey = `notification_${deviceId}`;
-    const subscription = this.subscriptions.get(subscriptionKey);
-    if (subscription) {
-      try {
-        subscription.remove();
-        this.subscriptions.delete(subscriptionKey);
-        console.log('Stopped notifications for device:', deviceId);
-      } catch (error) {
-        console.error('Error stopping notifications for device', deviceId, ':', error);
+    // 移除所有与该设备相关的订阅
+    const deviceSubscriptionKeys = Array.from(this.subscriptions.keys())
+      .filter(key => key.startsWith(`notification_${deviceId}`));
+    
+    deviceSubscriptionKeys.forEach(subscriptionKey => {
+      const subscription = this.subscriptions.get(subscriptionKey);
+      if (subscription) {
+        try {
+          subscription.remove();
+          this.subscriptions.delete(subscriptionKey);
+          console.log('Stopped notifications for subscription:', subscriptionKey);
+        } catch (error) {
+          // Ignore errors from already removed subscriptions
+          console.debug('Error stopping notifications (likely already removed):', subscriptionKey, ':', error);
+        }
       }
-    }
+    });
+    
+    // 移除设备的通知回调
     this.notificationCallbacks.delete(deviceId);
+    console.log('Stopped all notifications for device:', deviceId);
   };
 
   connectToDevice = async (scannedDevice: Device, callback?: (data: any) => void) => {
@@ -304,6 +347,12 @@ class BLEServiceInstance {
 
   disconnectFromDevice = async (deviceId: string) => {
     try {
+      // Check if device is actually connected before attempting disconnect
+      if (!this.connectedDevices.has(deviceId)) {
+        console.debug('Device already disconnected:', deviceId);
+        return;
+      }
+      
       const device = this.connectedDevices.get(deviceId);
       if (device) {
         // Cancel any reconnect attempts
@@ -312,8 +361,12 @@ class BLEServiceInstance {
         // Stop notifications and remove subscription
         this.stopNotifications(deviceId);
         
-        // Cancel connection
-        await device.cancelConnection();
+        // Cancel connection with null checking
+        try {
+          await device.cancelConnection();
+        } catch (cancelError) {
+          console.debug('Error canceling connection (likely already disconnected):', deviceId, ':', cancelError);
+        }
         
         // Remove from connected devices
         this.connectedDevices.delete(deviceId);
@@ -331,7 +384,7 @@ class BLEServiceInstance {
         console.log('Disconnected from device:', deviceId);
       }
     } catch (error) {
-      console.error('Disconnection error for device', deviceId, ':', error);
+      console.error('Disconnection error for device', deviceId, ':', error?.toString() || error);
     }
   };
 
@@ -343,9 +396,13 @@ class BLEServiceInstance {
       }
       this.reconnectTimers.clear();
       
-      // Disconnect each device
-      for (const deviceId of this.connectedDevices.keys()) {
-        await this.disconnectFromDevice(deviceId);
+      // Disconnect each device with null checking
+      for (const deviceId of Array.from(this.connectedDevices.keys())) {
+        try {
+          await this.disconnectFromDevice(deviceId);
+        } catch (error) {
+          console.error('Error disconnecting device', deviceId, ':', error);
+        }
       }
       
       console.log('Disconnected from all devices');
@@ -354,11 +411,19 @@ class BLEServiceInstance {
     }
   };
 
-  private clearAllSubscriptions = () => {
+  clearAllSubscriptions = () => {
     try {
-      // Remove all stored subscriptions
-      for (const subscription of this.subscriptions.values()) {
-        subscription.remove();
+      // Remove all stored subscriptions with null checking
+      for (const [key, subscription] of this.subscriptions.entries()) {
+        if (subscription) {
+          try {
+            subscription.remove();
+            console.log('Removed subscription:', key);
+          } catch (removeError) {
+            // Ignore errors from already removed subscriptions
+            console.debug('Error removing subscription (likely already removed):', key, ':', removeError);
+          }
+        }
       }
       this.subscriptions.clear();
       

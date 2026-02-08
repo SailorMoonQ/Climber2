@@ -10,4 +10,6 @@ export interface ExerciseRecord {
   averageSpeed: number;
   maxSpeed: number;
   heartRate: { avg: number; max: number };
+  trainingTargets: { duration?: number; distance?: number; calories?: number; speed?: number };
+  detailedData: { time: number; heartRate: number; speed: number }[];
 }

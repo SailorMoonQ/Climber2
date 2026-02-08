@@ -26,6 +26,7 @@ export enum BluetoothConnectionStatus {
   CONNECTING = 'connecting',
   CONNECTED = 'connected',
   DISCONNECTING = 'disconnecting',
+  ERROR = 'error',
 };
 
 // 蓝牙消息类型

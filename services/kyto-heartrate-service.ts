@@ -73,20 +73,15 @@ class KYTOHeartRateServiceInstance {
 
       console.log('Starting heart rate notifications...');
 
-      this.connectedDevice.monitorCharacteristicForService(
+      // 使用BLEService的通用通知方法，确保订阅被正确跟踪和清理
+      await BLEService.startNotifications(
+        this.connectedDevice,
         SERVICE_UUID,
         NOTIFY_CHARACTERISTIC_UUID,
-        (error: BleError | null, characteristic: Characteristic | null) => {
-          if (error) {
-            console.error('Heart rate notification error:', error);
-            return;
-          }
-
-          if (characteristic?.value) {
-            const heartRateData = this.parseHeartRateData(characteristic.value);
-            if (heartRateData && this.heartRateCallback) {
-              this.heartRateCallback(heartRateData.heartRate);
-            }
+        (rawData) => {
+          const heartRateData = this.parseHeartRateData(rawData);
+          if (heartRateData && this.heartRateCallback) {
+            this.heartRateCallback(heartRateData.heartRate);
           }
         }
       );
@@ -106,19 +101,20 @@ class KYTOHeartRateServiceInstance {
 
       console.log('Connecting to KYTO heart rate device...');
 
-      const connected = await scannedDevice.connect();
+      // 使用BLEService的通用连接方法
+      const connectedDevice = await BLEService.connectToDevice(scannedDevice);
+      
+      if (connectedDevice) {
+        this.connectedDevice = connectedDevice;
+        
+        // 开始监听心率通知
+        void this.startHeartRateNotifications();
 
-      console.log('Discovering services and characteristics...');
-      const device = await connected.discoverAllServicesAndCharacteristics();
+        console.log('Connected successfully to KYTO heart rate device!', connectedDevice.name);
+        return true;
+      }
 
-      console.log('Connected successfully to KYTO heart rate device!', device.name);
-
-      this.connectedDevice = device;
-
-      // 开始监听心率通知
-      void this.startHeartRateNotifications();
-
-      return true;
+      return false;
     } catch (error) {
       console.error('KYTO heart rate device connection error:', error);
       return false;
@@ -178,7 +174,8 @@ class KYTOHeartRateServiceInstance {
   disconnect = async () => {
     try {
       if (this.connectedDevice) {
-        await this.connectedDevice.cancelConnection();
+        // 使用BLEService的断开方法，确保统一的资源管理
+        await BLEService.disconnectFromDevice(this.connectedDevice.id);
         this.connectedDevice = null;
         this.heartRateCallback = null;
         console.log('Disconnected from KYTO heart rate device');
@@ -186,16 +183,6 @@ class KYTOHeartRateServiceInstance {
     } catch (error) {
       console.error('Error disconnecting from KYTO heart rate device:', error);
     }
-  };
-
-  // 获取连接状态
-  isConnected = (): boolean => {
-    return this.connectedDevice !== null;
-  };
-
-  // 设置心率回调
-  setHeartRateCallback = (callback: (heartRate: number) => void) => {
-    this.heartRateCallback = callback;
   };
 }
 

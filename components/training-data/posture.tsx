@@ -102,7 +102,7 @@ export const Posture: React.FC<PostureProps> = ({
 const styles = StyleSheet.create({
   dataItem: {
     backgroundColor: '#F8E7E1',
-    padding: 15,
+    paddingVertical: 15,
     borderRadius: 15,
     marginBottom: 10,
     alignItems: 'center',

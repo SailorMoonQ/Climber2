@@ -37,6 +37,8 @@ export enum BLEStatus {
   ERROR = 'error'
 }
 
+export const bleManager = new BleManager();
+
 // create your own singleton class
 class BLEServiceInstance {
   manager: BleManager | null = null;
@@ -54,7 +56,7 @@ class BLEServiceInstance {
 
   constructor() {
     try {
-      this.manager = new BleManager();
+      this.manager = bleManager;
       console.log('BLE Manager initialized successfully');
       this.setupAppStateListener();
     } catch (error) {

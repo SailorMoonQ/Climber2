@@ -22,8 +22,6 @@ import { AccessoryModal } from "@/components/ui/accessory-modal";
 import { User } from "@/interface/user.interface";
 import { BLEService } from '@/services/bluetooth';
 import { ForceService } from '@/services/force-service';
-import { KYTOHeartRateService } from '@/services/kyto-heartrate-service';
-import { WitMotionService } from '@/services/wit-motion-service';
 
 export default function FreeTrainingScreen() {
   const colorScheme = useColorScheme();
@@ -79,10 +77,14 @@ export default function FreeTrainingScreen() {
   const [detailedData, setDetailedData] = useState<{ time: number; heartRate: number; speed: number }[]>([]); // 详细数据（每秒记录）
 
   // 力量数据
-  const [leftHandForce, setLeftHandForce] = useState(20.2); // 左手力（N）
-  const [rightHandForce, setRightHandForce] = useState(14.2); // 右手力（N）
-  const [leftLegForce, setLeftLegForce] = useState(18.6); // 左腿力（N）
+  const [leftHandForce, setLeftHandForce] = useState(0); // 左手力（N）
+  const [rightHandForce, setRightHandForce] = useState(0); // 右手力（N）
+  const [leftLegForce, setLeftLegForce] = useState(0); // 左腿力（N）
   const [rightLegForce, setRightLegForce] = useState(0); // 右腿力（N）
+  
+  // 蓝牙连接状态
+  const [forceDeviceConnected, setForceDeviceConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('未连接'); // 未连接、连接中、已连接
 
   // 训练控制状态
   const [currentParams, setCurrentParams] = useState(paramsState);
@@ -211,6 +213,14 @@ export default function FreeTrainingScreen() {
 
   const [selectedMode, setSelectedMode] = useState('有氧');
 
+  ForceService.setForceCallback((forceData) => {
+    // 更新力量数据状态
+    setLeftHandForce(forceData.upperLeftForce || 0);
+    setRightHandForce(forceData.upperRightForce || 0);
+    setLeftLegForce(forceData.lowerLeftForce || 0);
+    setRightLegForce(forceData.lowerRightForce || 0);
+  });
+  
   // 组件卸载时清理所有资源
   useEffect(() => {
     return () => {
@@ -224,10 +234,6 @@ export default function FreeTrainingScreen() {
       try {
         // 清理所有蓝牙资源
         BLEService.clearAllSubscriptions();
-        void BLEService.disconnectAllDevices();
-        void ForceService.disconnect();
-        void KYTOHeartRateService.disconnect();
-        void WitMotionService.disconnect();
       } catch (error) {
         console.error('Error during Bluetooth cleanup:', error);
       }
@@ -288,7 +294,12 @@ export default function FreeTrainingScreen() {
 
 
       {/* 体姿态 */}
-      <Posture style={styles.posture} />
+      <TouchableOpacity
+        style={styles.posture}
+        onPress={() => setIsAccessoryModalVisible(true)}
+      >
+        <Posture />
+      </TouchableOpacity>
 
       {/* 阻力控制 */}
       <ResistanceControl
@@ -772,7 +783,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 580,
     right: 0,
-    width: '20%'
+    width: '24%'
   },
   duration: {
     position: 'absolute',

@@ -1,12 +1,13 @@
 import { Device } from 'react-native-ble-plx';
-import { BLEService } from './bluetooth';
+import { bleManager, BLEService } from './bluetooth';
 import { Buffer } from 'buffer';
 
 // Force设备相关配置
+export const FORCE_DEVICE_UUID = '3E2DD760-34F2-A764-AAA2-38736480A7D7';
+export const FORCE_DEVICE_NAME = 'QD_CLIMETE';
 export const FORCE_SERVICE_UUID = '9608';
 export const FORCE_WRITE_CHARACTERISTIC_UUID = '9600';
 export const FORCE_NOTIFY_CHARACTERISTIC_UUID = '9601';
-export const FORCE_DEVICE_NAME = 'QD_CLIMETE';
 
 // Force数据接口
 export interface ForceData {
@@ -15,7 +16,7 @@ export interface ForceData {
   lowerPosition: number; // 下肢实时位置 cm
   upperForce: number; // 上肢实时力 N
   lowerForce: number; // 下肢实时力 N
-  
+
   // 计算后的数据
   upperLeftPosition?: number; // 上肢左侧位置 cm
   upperRightPosition?: number; // 上肢右侧位置 cm
@@ -25,7 +26,7 @@ export interface ForceData {
   upperRightForce?: number; // 上肢右侧力 N
   lowerLeftForce?: number; // 下肢左侧力 N
   lowerRightForce?: number; // 下肢右侧力 N
-  
+
   timestamp: number;
 }
 
@@ -42,6 +43,12 @@ class ForceServiceInstance {
   private scanning = false;
   private connectedDevice: Device | null = null;
   private forceCallback: ((forceData: ForceData) => void) | null = null;
+  private lastCallbackTime = 0;
+  private readonly callbackInterval = 1000 / 30; // 30Hz sampling rate in milliseconds
+  
+  setForceCallback(callback: (forceData: ForceData) => void) {
+    this.forceCallback = callback;
+  }
 
   constructor() {
     console.log('Force Service initialized successfully');
@@ -83,17 +90,19 @@ class ForceServiceInstance {
         return;
       }
 
+      // console.log(buffer[3], buffer[2]);
+
       // 提取原始数据（小端格式）
       const forceData: Omit<ForceData, 'timestamp'> = {
         upperPosition: buffer.readUInt8(0), // Byte0: 上肢实时位置 cm
         lowerPosition: buffer.readUInt8(1), // Byte1: 下肢实时位置 cm
-        upperForce: buffer.readInt16LE(2), // Byte2-3: 上肢实时力 N
-        lowerForce: buffer.readInt16LE(4)  // Byte4-5: 下肢实时力 N
+        upperForce: (((buffer[3] << 8) | buffer[2]) & 0xFFFF) > 0x7FFF ? ((buffer[3] << 8) | buffer[2]) - 0x10000 : (buffer[3] << 8) | buffer[2], // Byte2-3: 上肢实时力 N (小端格式，Byte2是低位字节，Byte3是高位字节)
+        lowerForce: (((buffer[5] << 8) | buffer[4]) & 0xFFFF) > 0x7FFF ? ((buffer[5] << 8) | buffer[4]) - 0x10000 : (buffer[5] << 8) | buffer[4], // Byte4-5: 下肢实时力 N (小端格式，Byte4是低位字节，Byte5是高位字节)
       };
 
       // 计算左右侧位置
       const positions = this.calculateLeftRightPositions(forceData);
-      
+
       // 计算左右侧力
       const forces = this.calculateLeftRightForces(forceData);
 
@@ -104,9 +113,13 @@ class ForceServiceInstance {
         ...forces,
         timestamp: Date.now()
       };
-      
+
       if (this.forceCallback) {
-        this.forceCallback(completeData);
+        const currentTime = Date.now();
+        if (currentTime - this.lastCallbackTime >= this.callbackInterval) {
+          this.forceCallback(completeData);
+          this.lastCallbackTime = currentTime;
+        }
       }
     } catch (error) {
       console.error('Error parsing force data:', error);
@@ -114,7 +127,7 @@ class ForceServiceInstance {
   };
 
   // 开始监听Force通知
-  startForceNotifications = async () => {
+  startForceNotifications = () => {
     try {
       if (!this.connectedDevice) {
         console.error('Cannot start notifications: No connected device');
@@ -124,12 +137,30 @@ class ForceServiceInstance {
       console.log('Starting force notifications...');
 
       // 使用BLEService的通用通知方法
-      await BLEService.startNotifications(
+      BLEService.startNotifications(
         this.connectedDevice,
         FORCE_SERVICE_UUID,
         FORCE_NOTIFY_CHARACTERISTIC_UUID,
         this.handleRawData
       );
+
+      this.connectedDevice.monitorCharacteristicForService(
+        FORCE_SERVICE_UUID,
+        FORCE_NOTIFY_CHARACTERISTIC_UUID,
+        (error, characteristic) => {
+          if (error) {
+            console.error('Error monitoring characteristic:', error);
+            return;
+          }
+
+          if (!characteristic || !characteristic.value) {
+            console.debug('Error monitoring characteristic: Characteristic not found or no value');
+            return;
+          }
+
+          this.handleRawData(characteristic.value);
+        }
+      )
 
     } catch (error) {
       console.error('Failed to start force notifications:', error);
@@ -148,10 +179,10 @@ class ForceServiceInstance {
 
       // 使用BLEService的通用连接方法
       const connectedDevice = await BLEService.connectToDevice(scannedDevice, this.handleRawData);
-      
+
       if (connectedDevice) {
         this.connectedDevice = connectedDevice;
-        
+
         // 开始监听Force通知
         void this.startForceNotifications();
 
@@ -166,58 +197,79 @@ class ForceServiceInstance {
     }
   };
 
-  // 扫描并连接Force设备
+  // 设置Force回调或扫描连接设备
   scanAndConnect = async (callback?: (forceData: ForceData) => void) => {
     try {
       // 设置Force回调
       if (callback) {
         this.forceCallback = callback;
+        console.log('Force callback set successfully');
+      }
+      
+      // 如果已经连接了设备，不需要再次扫描
+      if (this.connectedDevice) {
+        console.log('Force device already connected');
+        return;
+      }
+      
+      // 如果没有回调函数，不执行扫描连接
+      if (!callback) {
+        console.log('No callback provided, skipping scan');
+        return;
       }
       
       if (this.scanning) {
+        console.log('Already scanning for Force device');
         return;
       }
       
       console.log('Starting Force device scan...');
+      this.scanning = true;
 
       // 使用BLEService的扫描功能
-      await BLEService.scanForDevices(
-        [{ name: FORCE_DEVICE_NAME, localName: FORCE_DEVICE_NAME }],
-        async (scannedDevice) => {
-          // 当找到设备时，停止扫描并连接
-          console.log('Force device found:', scannedDevice);
-          BLEService.stopScan();
-          await this.connectToDevice(scannedDevice);
+      await bleManager.startDeviceScan(
+        [FORCE_DEVICE_UUID],
+        null,
+        async (error, scannedDevice) => {
+          if (error) {
+            console.error('Force device scan error:', error);
+            this.scanning = false;
+            return;
+          }
+
+          console.log(`${scannedDevice?.name} ${scannedDevice?.localName}`);
+          if (scannedDevice?.name?.startsWith(FORCE_DEVICE_NAME)) {
+            // 当找到设备时，停止扫描并连接
+            console.log('Force device found:', scannedDevice);
+            bleManager.stopDeviceScan();
+            this.scanning = false;
+            await this.connectToDevice(scannedDevice);
+          }
         }
       );
     } catch (error) {
-      console.error('Failed to start Force device scan:', error);
+      console.error('Error in scanAndConnect:', error);
+      this.scanning = false;
     }
   };
 
   // 断开连接
   disconnect = async () => {
     try {
+      this.scanning = false;
       if (this.connectedDevice) {
         // 使用BLEService的断开方法
-        await BLEService.disconnectFromDevice(this.connectedDevice.id);
+        // await BLEService.disconnectFromDevice(this.connectedDevice.id);
+        this.connectedDevice.cancelConnection();
         this.connectedDevice = null;
         this.forceCallback = null;
         console.log('Disconnected from Force device');
+      } else {
+        bleManager.stopDeviceScan();
       }
     } catch (error) {
       console.error('Error disconnecting from Force device:', error);
     }
-  };
-
-  // 获取连接状态
-  isConnected = (): boolean => {
-    return this.connectedDevice !== null;
-  };
-
-  // 设置Force回调
-  setForceCallback = (callback: (forceData: ForceData) => void) => {
-    this.forceCallback = callback;
   };
 
   // 发送阻力数据

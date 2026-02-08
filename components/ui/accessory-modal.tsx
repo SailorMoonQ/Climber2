@@ -28,9 +28,9 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
   
   // 配件连接状态管理
   const [accessoryStatus, setAccessoryStatus] = React.useState<Record<string, string>>({
-    heartRate: 'connected',
-    posture: 'connected',
-    force: 'connected'
+    heartRate: 'disconnected',
+    posture: 'disconnected',
+    force: 'disconnected'
   });
 
   const handleHeartRateConnection = async (deviceType: string) => {
@@ -137,33 +137,16 @@ export const AccessoryModal: React.FC<AccessoryModalProps> = ({
     try {
       // 设置状态为连接中
       setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connecting' }));
-      
-      // 从数据库中获取保存的蓝牙设备信息
-      const savedDevice = await getBluetoothDevice('force');
-      
-      if (savedDevice) {
-        console.log('Found saved force device:', savedDevice);
-        
-        // 使用Force服务进行连接
-        await ForceService.scanAndConnect((forceData) => {
-          // Force数据回调
-          console.log('Received force data:', forceData);
-        });
-        
-        // 连接成功后更新状态
-        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
-      } else {
-        console.log('No saved force device found, scanning for new devices...');
-        
-        // 如果没有保存的设备，扫描并连接
-        await ForceService.scanAndConnect((forceData) => {
-          // Force数据回调
-          console.log('Received force data:', forceData);
-        });
-        
-        // 连接成功后更新状态
-        setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
-      }
+
+      // 如果没有保存的设备，扫描并连接
+      await ForceService.scanAndConnect((forceData) => {
+        // Force数据回调
+        console.log('Received force data:', forceData);
+      });
+
+      // 连接成功后更新状态
+      setAccessoryStatus(prev => ({ ...prev, [deviceType]: 'connected' }));
+
     } catch (error) {
       console.error('Force connection error:', error);
       // 连接失败，恢复为断开状态

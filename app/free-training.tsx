@@ -58,8 +58,8 @@ export default function FreeTrainingScreen() {
   });
   
   // 阻力设置
-  const [upperResistance, setUpperResistance] = useState(5);
-  const [lowerResistance, setLowerResistance] = useState(5);
+  const [leftResistance, setLeftResistance] = useState(5);
+  const [rightResistance, setRightResistance] = useState(5);
   
   // 目标设置
   const [showTargetModal, setShowTargetModal] = useState(false);
@@ -236,9 +236,6 @@ export default function FreeTrainingScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {/* 蓝牙连接状态 */}
-      {/*{renderConnectionStatus()}*/}
-
       <ThemedView style={styles.forceMonitorContainer}>
         <ForceBar value={leftHandForce} label="左手力" style={styles.forceBarItem} />
         <ForceBar value={rightHandForce} label="右手力" style={styles.forceBarItem} />
@@ -296,17 +293,19 @@ export default function FreeTrainingScreen() {
       {/* 阻力控制 */}
       <ResistanceControl
         style={styles.resistanceControlLeft}
-        title="上肢阻力"
-        initialValue={upperResistance}
-        onValueChange={setUpperResistance}
+        title="左侧阻力"
+        initialValue={leftResistance}
+        onValueChange={setLeftResistance}
         isLeft
+        resistanceType="upperLeft"
       />
       <ResistanceControl
         style={styles.resistanceControlRight}
-        title="下肢阻力"
-        initialValue={lowerResistance}
-        onValueChange={setLowerResistance}
+        title="右侧阻力"
+        initialValue={rightResistance}
+        onValueChange={setRightResistance}
         isRight
+        resistanceType="upperRight"
       />
 
       {/* 训练控制 */}

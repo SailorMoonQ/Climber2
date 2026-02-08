@@ -28,8 +28,8 @@ export default function ExerciseScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [climbingDistance, setClimbingDistance] = useState(342);
 
-  const [upperResistance, setUpperResistance] = useState(5);
-  const [lowerResistance, setLowerResistance] = useState(4);
+  const [leftResistance, setLeftResistance] = useState(5);
+  const [rightResistance, setRightResistance] = useState(4);
   const [isExerciseStarted, setIsExerciseStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [exerciseTime, setExerciseTime] = useState(60);
@@ -121,15 +121,15 @@ export default function ExerciseScreen() {
     // 发送阻力数据
     const sendResistance = async () => {
       await sendResistanceData({
-        upperLeft: upperResistance,
-        upperRight: upperResistance,
-        lowerLeft: lowerResistance,
-        lowerRight: lowerResistance
+        upperLeft: leftResistance,
+        upperRight: rightResistance,
+        lowerLeft: leftResistance,
+        lowerRight: rightResistance
       });
     };
 
     sendResistance();
-  }, [upperResistance, lowerResistance, sendResistanceData]);
+  }, [leftResistance, rightResistance, sendResistanceData]);
 
 
   return (
@@ -209,17 +209,19 @@ export default function ExerciseScreen() {
         {/* 阻力控制 */}
         <ResistanceControl
           style={styles.resistanceControlLeft}
-          title="上肢阻力"
-          initialValue={upperResistance}
-          onValueChange={setUpperResistance}
+          title="左侧阻力"
+          initialValue={leftResistance}
+          onValueChange={setLeftResistance}
           isLeft
+          resistanceType="upperLeft"
         />
         <ResistanceControl
           style={styles.resistanceControlRight}
-          title="下肢阻力"
-          initialValue={lowerResistance}
-          onValueChange={setLowerResistance}
+          title="右侧阻力"
+          initialValue={rightResistance}
+          onValueChange={setRightResistance}
           isRight
+          resistanceType="upperRight"
         />
       </View>
 

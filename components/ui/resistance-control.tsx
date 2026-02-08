@@ -1,9 +1,9 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, ViewProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '../themed-text';
 import { ThemedView } from '../themed-view';
-import { BluetoothContext } from '@/context/bluetooth-context';
+import { ForceService, ResistanceData } from '@/services/force-service';
 
 export type ResistanceControlProps = ViewProps & {
   title: string;
@@ -30,9 +30,6 @@ export function ResistanceControl({
                                   }: ResistanceControlProps) {
   // 在组件内部管理value状态
   const [value, setValue] = useState(initialValue);
-  
-  // 获取蓝牙上下文
-  const bluetoothContext = useContext(BluetoothContext);
 
   // 处理阻力值增减
   const handleDecrease = () => {
@@ -43,16 +40,13 @@ export function ResistanceControl({
       onValueChange?.(newResistance);
       
       // 发送蓝牙数据
-      if (bluetoothContext && bluetoothContext.sendResistanceData) {
-        const resistanceData = {
-          [resistanceType]: newResistance,
-          upperLeft: resistanceType === 'upperLeft' ? newResistance : bluetoothContext.currentResistance?.upperLeft || 0,
-          upperRight: resistanceType === 'upperRight' ? newResistance : bluetoothContext.currentResistance?.upperRight || 0,
-          lowerLeft: resistanceType === 'lowerLeft' ? newResistance : bluetoothContext.currentResistance?.lowerLeft || 0,
-          lowerRight: resistanceType === 'lowerRight' ? newResistance : bluetoothContext.currentResistance?.lowerRight || 0,
-        };
-        bluetoothContext.sendResistanceData(resistanceData);
-      }
+      const resistanceData: ResistanceData = {
+        upperLeft: resistanceType === 'upperLeft' ? newResistance : 0,
+        upperRight: resistanceType === 'upperRight' ? newResistance : 0,
+        lowerLeft: resistanceType === 'upperLeft' ? newResistance : 0,
+        lowerRight: resistanceType === 'upperRight' ? newResistance : 0
+      };
+      void ForceService.sendResistanceData(resistanceData);
     }
   };
 
@@ -64,16 +58,13 @@ export function ResistanceControl({
       onValueChange?.(newResistance);
       
       // 发送蓝牙数据
-      if (bluetoothContext && bluetoothContext.sendResistanceData) {
-        const resistanceData = {
-          [resistanceType]: newResistance,
-          upperLeft: resistanceType === 'upperLeft' ? newResistance : bluetoothContext.currentResistance?.upperLeft || 0,
-          upperRight: resistanceType === 'upperRight' ? newResistance : bluetoothContext.currentResistance?.upperRight || 0,
-          lowerLeft: resistanceType === 'lowerLeft' ? newResistance : bluetoothContext.currentResistance?.lowerLeft || 0,
-          lowerRight: resistanceType === 'lowerRight' ? newResistance : bluetoothContext.currentResistance?.lowerRight || 0,
-        };
-        bluetoothContext.sendResistanceData(resistanceData);
-      }
+      const resistanceData: ResistanceData = {
+        upperLeft: resistanceType === 'upperLeft' ? newResistance : 0,
+        upperRight: resistanceType === 'upperRight' ? newResistance : 0,
+        lowerLeft: resistanceType === 'upperLeft' ? newResistance : 0,
+        lowerRight: resistanceType === 'upperRight' ? newResistance : 0
+      };
+      void ForceService.sendResistanceData(resistanceData);
     }
   };
 

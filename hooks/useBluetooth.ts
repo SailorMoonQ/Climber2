@@ -42,204 +42,204 @@ const useBluetooth = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [scanning, setScanning] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (!BLEService.manager) {
-      console.error('BLE Service manager is not initialized');
-      setConnectionStatus(BluetoothConnectionStatus.ERROR);
-      return;
-    }
-    
-    try {
-      const subscription = BLEService.manager!.onStateChange((state) => {
-        setIsEnabled(state === State.PoweredOn);
-        if (state === State.PoweredOff) {
-          stopScan();
-          setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
-        }
-      }, true);
+  // useEffect(() => {
+  //   if (!BLEService.manager) {
+  //     console.error('BLE Service manager is not initialized');
+  //     setConnectionStatus(BluetoothConnectionStatus.ERROR);
+  //     return;
+  //   }
+  //
+  //   try {
+  //     const subscription = BLEService.manager!.onStateChange((state) => {
+  //       setIsEnabled(state === State.PoweredOn);
+  //       if (state === State.PoweredOff) {
+  //         stopScan();
+  //         setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
+  //       }
+  //     }, true);
+  //
+  //     return () => {
+  //       try {
+  //         subscription.remove();
+  //       } catch (unsubscribeError) {
+  //         console.error('Error removing state change subscription:', unsubscribeError);
+  //       }
+  //     };
+  //   } catch (error) {
+  //     console.error('Failed to initialize Bluetooth manager:', error?.toString() || error);
+  //     setConnectionStatus(BluetoothConnectionStatus.ERROR);
+  //   }
+  // }, []);
 
-      return () => {
-        try {
-          subscription.remove();
-        } catch (unsubscribeError) {
-          console.error('Error removing state change subscription:', unsubscribeError);
-        }
-      };
-    } catch (error) {
-      console.error('Failed to initialize Bluetooth manager:', error?.toString() || error);
-      setConnectionStatus(BluetoothConnectionStatus.ERROR);
-    }
-  }, []);
+  // const stopScan = useCallback(() => {
+  //   try {
+  //     BLEService.manager!.stopDeviceScan();
+  //   } catch (error) {
+  //     console.error('Failed to stop scan:', error);
+  //   } finally {
+  //     setScanning(false);
+  //   }
+  // }, [scanning]);
 
-  const stopScan = useCallback(() => {
-    try {
-      BLEService.manager!.stopDeviceScan();
-    } catch (error) {
-      console.error('Failed to stop scan:', error);
-    } finally {
-      setScanning(false);
-    }
-  }, [scanning]);
-
-  const startScan = useCallback(async () => {
-    if (!BLEService.manager || scanning) return;
-    console.log('scanning');
-
-    setScanning(true);
-    setDevices([]);
-
-    try {
-      BLEService.manager.startDeviceScan(
-        null, // 扫描所有服务
-        null, // 没有过滤条件
-        (error, device) => {
-          if (error) {
-            console.error('Scan error:', error);
-            setScanning(false);
-            return;
-          }
-
-          if (device) {
-            // 使用配置文件中的设备名称前缀进行过滤
-            if (device.name?.startsWith(DEVICE_NAME_PREFIXES.LOWER_COMPUTER) ||
-              device.name?.startsWith(DEVICE_NAME_PREFIXES.UPPER_COMPUTER)
-            ) {
-              console.log(device);
-              setDevices((prevDevices) => {
-                const exists = prevDevices.find(d => d.id === device.id);
-                if (exists) return prevDevices;
-                return [...prevDevices, device];
-              });
-
-              // 找到设备后停止扫描并尝试连接
-              stopScan();
-
-              // 连接到找到的设备
-              connectToDevice(device).then(success => {
-                console.log(success);
-              });
-            }
-          }
-        }
-      );
-    } catch (error: any) {
-      console.error('Failed to start scan:', error?.toString() || error);
-      // Check if the error is a BleError and log its reason
-      if (error?.hasOwnProperty('reason')) {
-        console.error('BLE Error reason:', error.reason);
-      }
-      setScanning(false);
-      setConnectionStatus(BluetoothConnectionStatus.ERROR);
-    }
-  }, []);
-
-  const connectToDevice = useCallback(async (device: Device) => {
-    if (!BLEService.manager) return false;
-
-    setConnectionStatus(BluetoothConnectionStatus.CONNECTING);
-
-    try {
-      // Ensure the device is not already connected
-      if (connectedDevice && connectedDevice.id === device.id) {
-        console.log('Device already connected');
-        setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
-        return true;
-      }
-
-      // Disconnect from any existing device first
-      if (connectedDevice) {
-        // 直接执行断开连接操作，避免循环依赖
-        setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
-
-        try {
-          if (connectedDevice) {
-            await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
-          }
-        } catch (disconnectError) {
-          console.error('Error during disconnection:', disconnectError);
-        }
-
-        setConnectedDevice(null);
-        setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
-      }
-
-      const newConnectedDevice = await BLEService.manager.connectToDevice(device.id, {timeout: 10000}); // 10秒超时
-
-      // Discover services and characteristics
-      await newConnectedDevice.discoverAllServicesAndCharacteristics();
-
-      setConnectedDevice(newConnectedDevice);
-      setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
-
-      // Set up notifications with enhanced error handling
-      try {
-        // 使用BLEService的startNotifications方法，确保订阅被正确跟踪和清理
-        await BLEService.startNotifications(
-          newConnectedDevice,
-          BLUETOOTH_SERVICES.MAIN_SERVICE,
-          BLUETOOTH_CHARACTERISTICS.NOTIFY_CHARACTERISTIC,
-          (value) => {
-            // 处理接收到的数据
-            try {
-              // Check if the value contains an error object from the service
-              if (value && typeof value === 'object' && value.error) {
-                console.error('Notification error received:', value.error);
-                // Handle the notification error appropriately
-                setConnectionStatus(BluetoothConnectionStatus.ERROR);
-                return;
-              }
-              
-              const data = parseBluetoothNotificationData(value);
-              if (data) {
-                handleReceivedData(data);
-              }
-            } catch (parseError) {
-              console.error('Error processing notification data:', parseError);
-            }
-          }
-        );
-        console.log('Connected successfully to Wit Motion device!', newConnectedDevice.name || newConnectedDevice.id);
-      } catch (monitorError: any) {
-        console.error('Failed to set up characteristic monitoring:', monitorError?.toString() || monitorError);
-        // Don't change connection status here as the main connection is successful
-        // Just log the error and continue
-      }
-
-      return true;
-    } catch (error: any) {
-      console.error('Connection failed:', error?.toString() || error);
-      // Check if the error is a BleError and log its reason
-      if (error?.hasOwnProperty('reason')) {
-        console.error('BLE Connection Error reason:', error.reason);
-      }
-      setConnectionStatus(BluetoothConnectionStatus.ERROR);
-      return false;
-    }
-  }, [BLEService.manager, connectedDevice, setConnectedDevice, setConnectionStatus]);
-
-  const disconnectFromDevice = useCallback(async () => {
-    if (!BLEService.manager || !connectedDevice) return;
-
-    setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
-
-    try {
-      // Stop notifications first to prevent errors during disconnection
-      BLEService.stopNotifications(connectedDevice.id);
-      
-      await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
-      setConnectedDevice(null);
-      setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
-    } catch (error: any) {
-      console.error('Disconnection failed:', error?.toString() || error);
-      // Check if the error is a BleError and log its reason with null safety
-      if (error?.reason) {
-        console.error('BLE Disconnection Error reason:', error.reason);
-      }
-      // Ensure we still update the UI state even if disconnection fails
-      setConnectedDevice(null);
-      setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
-    }
-  }, [BLEService.manager, connectedDevice]);
+  // const startScan = useCallback(async () => {
+  //   if (!BLEService.manager || scanning) return;
+  //   console.log('scanning');
+  //
+  //   setScanning(true);
+  //   setDevices([]);
+  //
+  //   try {
+  //     BLEService.manager.startDeviceScan(
+  //       null, // 扫描所有服务
+  //       null, // 没有过滤条件
+  //       (error, device) => {
+  //         if (error) {
+  //           console.error('Scan error:', error);
+  //           setScanning(false);
+  //           return;
+  //         }
+  //
+  //         if (device) {
+  //           // 使用配置文件中的设备名称前缀进行过滤
+  //           if (device.name?.startsWith(DEVICE_NAME_PREFIXES.LOWER_COMPUTER) ||
+  //             device.name?.startsWith(DEVICE_NAME_PREFIXES.UPPER_COMPUTER)
+  //           ) {
+  //             console.log(device);
+  //             setDevices((prevDevices) => {
+  //               const exists = prevDevices.find(d => d.id === device.id);
+  //               if (exists) return prevDevices;
+  //               return [...prevDevices, device];
+  //             });
+  //
+  //             // 找到设备后停止扫描并尝试连接
+  //             stopScan();
+  //
+  //             // 连接到找到的设备
+  //             connectToDevice(device).then(success => {
+  //               console.log(success);
+  //             });
+  //           }
+  //         }
+  //       }
+  //     );
+  //   } catch (error: any) {
+  //     console.error('Failed to start scan:', error?.toString() || error);
+  //     // Check if the error is a BleError and log its reason
+  //     if (error?.hasOwnProperty('reason')) {
+  //       console.error('BLE Error reason:', error.reason);
+  //     }
+  //     setScanning(false);
+  //     setConnectionStatus(BluetoothConnectionStatus.ERROR);
+  //   }
+  // }, []);
+  //
+  // const connectToDevice = useCallback(async (device: Device) => {
+  //   if (!BLEService.manager) return false;
+  //
+  //   setConnectionStatus(BluetoothConnectionStatus.CONNECTING);
+  //
+  //   try {
+  //     // Ensure the device is not already connected
+  //     if (connectedDevice && connectedDevice.id === device.id) {
+  //       console.log('Device already connected');
+  //       setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
+  //       return true;
+  //     }
+  //
+  //     // Disconnect from any existing device first
+  //     if (connectedDevice) {
+  //       // 直接执行断开连接操作，避免循环依赖
+  //       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
+  //
+  //       try {
+  //         if (connectedDevice) {
+  //           await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
+  //         }
+  //       } catch (disconnectError) {
+  //         console.error('Error during disconnection:', disconnectError);
+  //       }
+  //
+  //       setConnectedDevice(null);
+  //       setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
+  //     }
+  //
+  //     const newConnectedDevice = await BLEService.manager.connectToDevice(device.id, {timeout: 10000}); // 10秒超时
+  //
+  //     // Discover services and characteristics
+  //     await newConnectedDevice.discoverAllServicesAndCharacteristics();
+  //
+  //     setConnectedDevice(newConnectedDevice);
+  //     setConnectionStatus(BluetoothConnectionStatus.CONNECTED);
+  //
+  //     // Set up notifications with enhanced error handling
+  //     try {
+  //       // 使用BLEService的startNotifications方法，确保订阅被正确跟踪和清理
+  //       await BLEService.startNotifications(
+  //         newConnectedDevice,
+  //         BLUETOOTH_SERVICES.MAIN_SERVICE,
+  //         BLUETOOTH_CHARACTERISTICS.NOTIFY_CHARACTERISTIC,
+  //         (value) => {
+  //           // 处理接收到的数据
+  //           try {
+  //             // Check if the value contains an error object from the service
+  //             if (value && typeof value === 'object' && value.error) {
+  //               console.error('Notification error received:', value.error);
+  //               // Handle the notification error appropriately
+  //               setConnectionStatus(BluetoothConnectionStatus.ERROR);
+  //               return;
+  //             }
+  //
+  //             const data = parseBluetoothNotificationData(value);
+  //             if (data) {
+  //               handleReceivedData(data);
+  //             }
+  //           } catch (parseError) {
+  //             console.error('Error processing notification data:', parseError);
+  //           }
+  //         }
+  //       );
+  //       console.log('Connected successfully to Wit Motion device!', newConnectedDevice.name || newConnectedDevice.id);
+  //     } catch (monitorError: any) {
+  //       console.error('Failed to set up characteristic monitoring:', monitorError?.toString() || monitorError);
+  //       // Don't change connection status here as the main connection is successful
+  //       // Just log the error and continue
+  //     }
+  //
+  //     return true;
+  //   } catch (error: any) {
+  //     console.error('Connection failed:', error?.toString() || error);
+  //     // Check if the error is a BleError and log its reason
+  //     if (error?.hasOwnProperty('reason')) {
+  //       console.error('BLE Connection Error reason:', error.reason);
+  //     }
+  //     setConnectionStatus(BluetoothConnectionStatus.ERROR);
+  //     return false;
+  //   }
+  // }, [BLEService.manager, connectedDevice, setConnectedDevice, setConnectionStatus]);
+  //
+  // const disconnectFromDevice = useCallback(async () => {
+  //   if (!BLEService.manager || !connectedDevice) return;
+  //
+  //   setConnectionStatus(BluetoothConnectionStatus.DISCONNECTING);
+  //
+  //   try {
+  //     // Stop notifications first to prevent errors during disconnection
+  //     BLEService.stopNotifications(connectedDevice.id);
+  //
+  //     await BLEService.manager.cancelDeviceConnection(connectedDevice.id);
+  //     setConnectedDevice(null);
+  //     setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
+  //   } catch (error: any) {
+  //     console.error('Disconnection failed:', error?.toString() || error);
+  //     // Check if the error is a BleError and log its reason with null safety
+  //     if (error?.reason) {
+  //       console.error('BLE Disconnection Error reason:', error.reason);
+  //     }
+  //     // Ensure we still update the UI state even if disconnection fails
+  //     setConnectedDevice(null);
+  //     setConnectionStatus(BluetoothConnectionStatus.DISCONNECTED);
+  //   }
+  // }, [BLEService.manager, connectedDevice]);
 
   const sendResistanceData = useCallback(async (resistanceData: ResistanceData) => {
     console.log(resistanceData);
@@ -457,10 +457,6 @@ const useBluetooth = () => {
     connectedDevice,
     devices,
     scanning,
-    startScan,
-    stopScan,
-    connectToDevice,
-    disconnectFromDevice,
     sendResistanceData,
     sendData,
     calculateLeftRightPositions,

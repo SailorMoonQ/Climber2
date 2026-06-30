@@ -41,3 +41,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# junk / large artifacts (don't commit build zips or macOS resource forks)
+._*
+*.zip

@@ -220,10 +220,25 @@ class BLEServiceInstance {
         return null;
       }
 
-      // Check if already connected
+      // Check if already connected — but verify the cached device is ACTUALLY still
+      // connected. A spontaneous drop can leave a stale map entry; returning it would
+      // skip reconnection and start notifications on a dead device (causes connect/
+      // disconnect loops and silent "connected but no data").
       if (this.connectedDevices.has(scannedDevice.id)) {
-        console.log('Device already connected:', scannedDevice.id);
-        return this.connectedDevices.get(scannedDevice.id);
+        const existing = this.connectedDevices.get(scannedDevice.id);
+        let stillConnected = false;
+        try {
+          stillConnected = !!existing && (await existing.isConnected());
+        } catch {
+          stillConnected = false;
+        }
+        if (stillConnected) {
+          console.log('Device already connected:', scannedDevice.id);
+          return existing;
+        }
+        // stale/dead entry → clean it up and fall through to a fresh connect
+        this.connectedDevices.delete(scannedDevice.id);
+        this.stopNotifications(scannedDevice.id);
       }
 
       // Check BLE status before connecting

@@ -1,138 +1,195 @@
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import React, { useContext } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Link } from 'expo-router';
-import { Image } from "expo-image";
+import { useRouter } from 'expo-router';
+import { useTokens } from '@/hooks/use-tokens';
+import { useI18n, StringKey } from '@/i18n';
+import { Tokens, Elevation } from '@/constants/theme';
+import { Avatar, Card, ConnectionChip, Txt } from '@/components/ui/primitives';
+import { OrganizationContext } from '@/contexts/OrganizationContext';
+import { useUser } from '@/contexts/UserContext';
+
+type Feature = {
+  titleKey: StringKey;
+  helpKey: StringKey;
+  icon: keyof typeof Ionicons.glyphMap;
+  href: string;
+  primary?: boolean;
+  comingSoon?: boolean;
+};
+
+const FEATURES: Feature[] = [
+  { titleKey: 'freeTraining', helpKey: 'freeTrainingHelp', icon: 'fitness', href: '/free-training', primary: true },
+  { titleKey: 'dynamicAssessment', helpKey: 'dynamicAssessmentHelp', icon: 'speedometer', href: '/dynamic-assessment' },
+  { titleKey: 'userManagement', helpKey: 'userManagementHelp', icon: 'people', href: '/user-management' },
+  { titleKey: 'scenarioGame', helpKey: 'scenarioGameHelp', icon: 'game-controller', href: '/scenario-game', comingSoon: true },
+];
 
 export default function HomeScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
-  const buttonData = [
-    {
-      title: '动态评估',
-      icon: 'speedometer-outline',
-      href: '/dynamic-assessment',
-      color: '#FF6B6B',
-    },
-    {
-      title: '自由训练',
-      icon: 'fitness-outline',
-      href: '/free-training',
-      color: '#4ECDC4',
-    },
-    {
-      title: '情景游戏',
-      icon: 'game-controller-outline',
-      href: '/scenario-game',
-      color: '#45B7D1',
-    },
-    {
-      title: '用户管理/运动数据',
-      icon: 'people-outline',
-      href: '/user-management',
-      color: '#96CEB4',
-    },
-  ];
+  const { c } = useTokens();
+  const { t } = useI18n();
+  const router = useRouter();
+  const org = useContext(OrganizationContext);
+  const { selectedUser } = useUser();
+  const orgName = org?.organizationName || t('systemName');
 
   return (
-    <ThemedView style={[styles.container, {backgroundColor: isDark ? '#121212' : '#f9f9f9'}]}>
-      <View style={styles.buttonContainer}>
-        {buttonData.map((button, index) => (
-          // @ts-ignore
-          <Link key={index} href={button.href} asChild>
-            <TouchableOpacity style={[
-              styles.buttonWrapper,
-              {
-                backgroundColor: 'transparent',
-                borderColor: button.color,
-                shadowColor: button.color + '40'
-              }
-            ]}>
-              <ThemedView style={[
-                styles.button,
-              ]}>
-                <Ionicons name={button.icon as any} size={80} color={button.color} style={styles.icon}/>
-                <ThemedText type="subtitle" style={[styles.buttonText, {color: isDark ? '#ffffff' : '#333333'}]}>
-                  {button.title}
-                </ThemedText>
-              </ThemedView>
-            </TouchableOpacity>
-          </Link>
-        ))}
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
+      {/* top bar */}
+      <View style={styles.topBar}>
+        <View style={styles.brand}>
+          <View style={[styles.logoMark, { backgroundColor: c.primary }]}>
+            <Ionicons name="trending-up" size={22} color={c.onPrimary} />
+          </View>
+          <View>
+            <Txt variant="subtitle">{orgName}</Txt>
+            <Txt variant="caption" color={c.textSecondary}>{t('appName')}</Txt>
+          </View>
+        </View>
+        <View style={styles.topRight}>
+          <ConnectionChip status="disconnected" />
+          <TouchableOpacity
+            onPress={() => router.push('/settings')}
+            style={[styles.gear, { backgroundColor: c.surface2 }]}
+          >
+            <Ionicons name="settings-outline" size={22} color={c.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Logo 区域 */}
-      <View
-        style={styles.logoContainer}
-      >
-        <Image
-          source={require('@/assets/images/logo.png')}
-          style={styles.logo}
-          contentFit="contain"/>
-      </View>
-    </ThemedView>
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        {/* patient context */}
+        <Card style={styles.patientCard}>
+          <Avatar name={selectedUser?.name} size={48} />
+          <View style={{ flex: 1 }}>
+            <Txt variant="caption" color={c.textSecondary}>{t('currentPatient')}</Txt>
+            <Txt variant="subtitle">{selectedUser?.name ?? t('noPatient')}</Txt>
+            {selectedUser ? (
+              <Txt variant="caption" color={c.textMuted}>
+                {selectedUser.gender} · {selectedUser.age}{t('years')}
+              </Txt>
+            ) : null}
+          </View>
+          <TouchableOpacity style={styles.switch} onPress={() => router.push('/user-management')}>
+            <Txt variant="caption" color={c.primary}>{t('switch')} ›</Txt>
+          </TouchableOpacity>
+        </Card>
+
+        {/* feature grid */}
+        <View style={styles.grid}>
+          {FEATURES.map((f) => {
+            const onPress = () => router.push(f.href as any);
+            if (f.primary) {
+              return (
+                <TouchableOpacity
+                  key={f.titleKey}
+                  activeOpacity={0.9}
+                  onPress={onPress}
+                  style={[styles.cell, { backgroundColor: c.primary }, Elevation.card]}
+                >
+                  <View style={[styles.overlayCircle, { backgroundColor: c.onPrimary }]} />
+                  <Txt variant="caption" color={c.onPrimary} style={{ opacity: 0.85, letterSpacing: 1 }}>
+                    {t('primary')}
+                  </Txt>
+                  <Ionicons name={f.icon} size={40} color={c.onPrimary} style={{ marginVertical: 10 }} />
+                  <Txt variant="subtitle" color={c.onPrimary}>{t(f.titleKey)}</Txt>
+                  <Txt variant="caption" color={c.onPrimary} style={{ opacity: 0.85 }}>{t(f.helpKey)}</Txt>
+                </TouchableOpacity>
+              );
+            }
+            if (f.comingSoon) {
+              return (
+                <TouchableOpacity
+                  key={f.titleKey}
+                  activeOpacity={0.9}
+                  onPress={onPress}
+                  style={[styles.cell, { backgroundColor: c.surface2, borderColor: c.border, borderWidth: 1, borderStyle: 'dashed' }]}
+                >
+                  <View style={[styles.iconTile, { backgroundColor: c.surface }]}>
+                    <Ionicons name={f.icon} size={26} color={c.textMuted} />
+                  </View>
+                  <View style={[styles.csPill, { backgroundColor: c.surface }]}>
+                    <Txt variant="caption" color={c.textMuted}>{t('comingSoon')}</Txt>
+                  </View>
+                  <Txt variant="subtitle" color={c.textMuted}>{t(f.titleKey)}</Txt>
+                  <Txt variant="caption" color={c.textMuted}>{t(f.helpKey)}</Txt>
+                </TouchableOpacity>
+              );
+            }
+            return (
+              <TouchableOpacity
+                key={f.titleKey}
+                activeOpacity={0.9}
+                onPress={onPress}
+                style={[styles.cell, { backgroundColor: c.surface, borderColor: c.border, borderWidth: StyleSheet.hairlineWidth }, Elevation.card]}
+              >
+                <View style={[styles.iconTile, { backgroundColor: c.primarySoft }]}>
+                  <Ionicons name={f.icon} size={26} color={c.primary} />
+                </View>
+                <Txt variant="subtitle">{t(f.titleKey)}</Txt>
+                <Txt variant="caption" color={c.textSecondary}>{t(f.helpKey)}</Txt>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.footer}>
+          <Txt variant="caption" color={c.textMuted}>{t('appName')} · v1.0.0</Txt>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  topBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  buttonContainer: {
-    width: '100%',
-    maxWidth: 600,
-    gap: 30,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  buttonWrapper: {
-    display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 25,
-    borderWidth: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 8,
+    paddingHorizontal: Tokens.space.lg,
+    paddingVertical: Tokens.space.base,
   },
-  button: {
-    padding: 30,
-    borderRadius: 23,
-    alignItems: 'center',
-    minHeight: 180,
+  brand: { flexDirection: 'row', alignItems: 'center', gap: Tokens.space.md },
+  logoMark: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: Tokens.space.md },
+  gear: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  body: { padding: Tokens.space.lg, gap: Tokens.space.lg },
+  patientCard: { flexDirection: 'row', alignItems: 'center', gap: Tokens.space.md },
+  switch: { paddingHorizontal: Tokens.space.sm, paddingVertical: Tokens.space.xs },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.space.base },
+  cell: {
+    width: '47.5%',
+    flexGrow: 1,
+    minHeight: 150,
+    borderRadius: Tokens.radius.lg,
+    padding: Tokens.space.lg,
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  icon: {
-    marginBottom: 15,
-  },
-  buttonText: {
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  logoContainer: {
+  overlayCircle: {
     position: 'absolute',
-    bottom: 20,
-    left: '50%',
-    transform: [{translateX: -50}],
-    width: 140,
-    height: 50,
+    right: -30,
+    top: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    opacity: 0.12,
   },
-  logo: {
-    width: '100%',
-    height: '100%',
+  iconTile: {
+    width: 52,
+    height: 52,
+    borderRadius: Tokens.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Tokens.space.md,
   },
+  csPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Tokens.radius.pill,
+    marginBottom: Tokens.space.sm,
+  },
+  footer: { alignItems: 'center', paddingVertical: Tokens.space.lg, opacity: 0.7 },
 });

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Modal, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
-import { ThemedText } from '../themed-text';
+import { Elevation, Tokens } from '@/constants/theme';
+import { useTokens } from '@/hooks/use-tokens';
+import { AppButton, Card, Txt } from '@/components/ui/primitives';
 
 interface TargetSetting {
   duration: number; // 运动时长（秒）
@@ -21,6 +23,7 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
   initialTargets = { duration: 300, distance: 100, calories: 500 }, // 默认5分钟、100米、500千卡
   showOnlyDistance = false,
 }) => {
+  const { c } = useTokens();
   const [targets, setTargets] = useState<TargetSetting>(initialTargets);
 
   // 处理时长选择
@@ -73,6 +76,27 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
     return `${mins}:00`;
   };
 
+  // 选项按钮渲染
+  const renderOption = (active: boolean, key: string, label: string, onPress: () => void) => (
+    <TouchableOpacity
+      key={key}
+      style={[
+        styles.settingOption,
+        { backgroundColor: active ? c.primary : c.surface2 },
+        active && styles.activeOption,
+      ]}
+      onPress={onPress}
+    >
+      <Txt
+        variant="caption"
+        color={active ? c.onPrimary : c.textSecondary}
+        style={active ? styles.activeOptionText : undefined}
+      >
+        {label}
+      </Txt>
+    </TouchableOpacity>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -81,53 +105,60 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
       onRequestClose={() => onClose(null)}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <ThemedText style={styles.modalTitle}>运动目标</ThemedText>
+        <View style={[styles.modalContent, { backgroundColor: c.surface }, Elevation.sheet]}>
+          <Txt variant="title" style={[styles.modalTitle, { borderBottomColor: c.border }]}>
+            运动目标
+          </Txt>
 
           {/* 运动时长设置 */}
           {!showOnlyDistance && (
-            <View style={styles.settingItem}>
+            <View style={[styles.settingItem, { borderBottomColor: c.border }]}>
               <View style={styles.settingItemTitle}>
-                <ThemedText style={styles.settingLabel}>运动时长</ThemedText>
+                <Txt variant="subtitle" style={styles.settingLabel}>
+                  运动时长
+                </Txt>
                 <View style={styles.settingValueContainer}>
                   <TextInput
-                    style={styles.settingInput}
+                    style={[
+                      styles.settingInput,
+                      { backgroundColor: c.surface2, borderColor: c.border, color: c.text },
+                    ]}
                     value={formatDuration(targets.duration)}
                     editable={false}
                   />
                 </View>
               </View>
               <View style={styles.settingOptions}>
-                {[5, 10, 20, 30].map(minutes => (
-                  <TouchableOpacity
-                    key={`duration-${minutes}`}
-                    style={[
-                      styles.settingOption,
-                      Math.floor(targets.duration / 60) === minutes && styles.activeOption,
-                    ]}
-                    onPress={() => handleDurationSelect(minutes)}
-                  >
-                    <ThemedText
-                      style={[
-                        styles.settingOptionText,
-                        Math.floor(targets.duration / 60) === minutes && styles.activeOptionText,
-                      ]}
-                    >
-                      {minutes}:00
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
+                {[5, 10, 20, 30].map(minutes =>
+                  renderOption(
+                    Math.floor(targets.duration / 60) === minutes,
+                    `duration-${minutes}`,
+                    `${minutes}:00`,
+                    () => handleDurationSelect(minutes)
+                  )
+                )}
               </View>
             </View>
           )}
 
           {/* 攀爬距离设置 */}
-          <View style={[styles.settingItem, showOnlyDistance && styles.settingItemLast]}>
+          <View
+            style={[
+              styles.settingItem,
+              { borderBottomColor: c.border },
+              showOnlyDistance && styles.settingItemLast,
+            ]}
+          >
             <View style={styles.settingItemTitle}>
-              <ThemedText style={styles.settingLabel}>攀爬距离(m)</ThemedText>
+              <Txt variant="subtitle" style={styles.settingLabel}>
+                攀爬距离(m)
+              </Txt>
               <View style={styles.settingValueContainer}>
                 <TextInput
-                  style={styles.settingInput}
+                  style={[
+                    styles.settingInput,
+                    { backgroundColor: c.surface2, borderColor: c.border, color: c.text },
+                  ]}
                   value={targets.distance.toString()}
                   keyboardType="numeric"
                   onChangeText={handleDistanceInput}
@@ -135,25 +166,14 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
               </View>
             </View>
             <View style={styles.settingOptions}>
-              {[100, 200, 500, 1000].map(meters => (
-                <TouchableOpacity
-                  key={`distance-${meters}`}
-                  style={[
-                    styles.settingOption,
-                    targets.distance === meters && styles.activeOption,
-                  ]}
-                  onPress={() => handleDistanceSelect(meters)}
-                >
-                  <ThemedText
-                    style={[
-                      styles.settingOptionText,
-                      targets.distance === meters && styles.activeOptionText,
-                    ]}
-                  >
-                    {meters}
-                  </ThemedText>
-                </TouchableOpacity>
-              ))}
+              {[100, 200, 500, 1000].map(meters =>
+                renderOption(
+                  targets.distance === meters,
+                  `distance-${meters}`,
+                  `${meters}`,
+                  () => handleDistanceSelect(meters)
+                )
+              )}
             </View>
           </View>
 
@@ -161,10 +181,15 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
           {!showOnlyDistance && (
             <View style={[styles.settingItem, styles.settingItemLast]}>
               <View style={styles.settingItemTitle}>
-                <ThemedText style={styles.settingLabel}>能量消耗(kcal)</ThemedText>
+                <Txt variant="subtitle" style={styles.settingLabel}>
+                  能量消耗(kcal)
+                </Txt>
                 <View style={styles.settingValueContainer}>
                   <TextInput
-                    style={styles.settingInput}
+                    style={[
+                      styles.settingInput,
+                      { backgroundColor: c.surface2, borderColor: c.border, color: c.text },
+                    ]}
                     value={targets.calories.toString()}
                     keyboardType="numeric"
                     onChangeText={handleCaloriesInput}
@@ -172,50 +197,33 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
                 </View>
               </View>
               <View style={styles.settingOptions}>
-                {[100, 200, 500, 1000].map(kcal => (
-                  <TouchableOpacity
-                    key={`calories-${kcal}`}
-                    style={[
-                      styles.settingOption,
-                      targets.calories === kcal && styles.activeOption,
-                    ]}
-                    onPress={() => handleCaloriesSelect(kcal)}
-                  >
-                    <ThemedText
-                      style={[
-                        styles.settingOptionText,
-                        targets.calories === kcal && styles.activeOptionText,
-                      ]}
-                    >
-                      {kcal}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
+                {[100, 200, 500, 1000].map(kcal =>
+                  renderOption(
+                    targets.calories === kcal,
+                    `calories-${kcal}`,
+                    `${kcal}`,
+                    () => handleCaloriesSelect(kcal)
+                  )
+                )}
               </View>
             </View>
           )}
 
           {/* 提示信息 */}
-          <ThemedText style={styles.hintText}>
-            同时设定多个目标时，完成任意一个即运动结束
-          </ThemedText>
+          <Card
+            inset
+            elevated={false}
+            style={[styles.hintBox, { backgroundColor: c.warningSoft, borderColor: c.warning }]}
+          >
+            <Txt variant="caption" color={c.warning} style={styles.hintText}>
+              同时设定多个目标时，完成任意一个即运动结束
+            </Txt>
+          </Card>
 
           {/* 按钮容器 */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={handleCancel}
-            >
-              <ThemedText style={styles.buttonText}>取消</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.confirmButton]}
-              onPress={handleConfirm}
-            >
-              <ThemedText style={[styles.buttonText, styles.confirmButtonText]}>
-                确认
-              </ThemedText>
-            </TouchableOpacity>
+            <AppButton label="取消" variant="secondary" full onPress={handleCancel} />
+            <AppButton label="确认" variant="primary" full onPress={handleConfirm} />
           </View>
         </View>
       </View>
@@ -226,140 +234,83 @@ export const TargetSettingModal: React.FC<TargetSettingModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: Tokens.radius.xl,
+    padding: Tokens.space.lg,
     width: '85%',
     maxHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   modalTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 24,
+    marginBottom: Tokens.space.lg,
     textAlign: 'center',
-    paddingBottom: 16,
+    paddingBottom: Tokens.space.base,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
   settingItem: {
-    marginBottom: 28,
-    paddingBottom: 16,
+    marginBottom: Tokens.space.lg,
+    paddingBottom: Tokens.space.base,
     borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
   },
   settingItemLast: {
-    marginBottom: 28,
+    marginBottom: Tokens.space.lg,
     paddingBottom: 0,
     borderBottomWidth: 0,
   },
   settingLabel: {
-    fontSize: 18,
-    color: '#333',
-    marginBottom: 12,
-    fontWeight: '600',
+    marginBottom: Tokens.space.md,
   },
   settingValueContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.space.md,
   },
   settingInput: {
-    backgroundColor: '#f8f8f8',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: Tokens.radius.sm,
+    padding: Tokens.space.md,
     width: 100,
     textAlign: 'center',
     fontSize: 18,
-    color: '#333',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
   },
   settingOptions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: Tokens.space.sm,
   },
   settingOption: {
-    backgroundColor: '#f0e8e4',
-    borderRadius: 20,
+    borderRadius: Tokens.radius.pill,
     paddingVertical: 10,
     paddingHorizontal: 18,
     minWidth: 75,
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.space.sm,
   },
   activeOption: {
-    backgroundColor: '#ff7f50',
     transform: [{ scale: 1.05 }],
   },
-  settingOptionText: {
-    fontSize: 15,
-    color: '#555',
-    fontWeight: '500',
-  },
   activeOptionText: {
-    color: '#fff',
     fontWeight: 'bold',
   },
+  hintBox: {
+    marginBottom: Tokens.space.lg,
+  },
   hintText: {
-    fontSize: 13,
-    color: '#777',
     textAlign: 'center',
-    marginBottom: 24,
-    backgroundColor: '#fff8f5',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#ffe8d6',
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 16,
-  },
-  button: {
-    borderRadius: 28,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cancelButton: {
-    backgroundColor: '#f8f8f8',
-  },
-  confirmButton: {
-    backgroundColor: '#ff7f50',
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  confirmButtonText: {
-    color: '#fff',
+    gap: Tokens.space.base,
   },
   settingItemTitle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  }
+  },
 });

@@ -1,434 +1,247 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
-import { ResistanceControl } from '@/components/ui/resistance-control';
-import { Distance } from '@/components/training-data/distance';
-import { HeartRate } from '@/components/training-data/heart-rate';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import useBluetooth from '@/hooks/useBluetooth';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useUser } from '@/contexts/UserContext';
 import DatabaseService from '@/services/database-service';
 import { User } from '@/interface/user.interface';
+import { ForceService, ForceData } from '@/services/force-service';
+import { KYTOHeartRateService } from '@/services/kyto-heartrate-service';
+import { useTokens } from '@/hooks/use-tokens';
+import { useI18n } from '@/i18n';
+import { Tokens, hrZoneColor, hrZoneKey } from '@/constants/theme';
+import {
+  AlertBanner,
+  AppButton,
+  Avatar,
+  Card,
+  Header,
+  Metric,
+  Stepper,
+  Txt,
+} from '@/components/ui/primitives';
+import { TargetSettingModal } from '@/components/ui/target-setting-modal';
+import { PostureCard } from '@/components/ui/posture-card';
 
-import { StartStopControls } from "@/components/ui/start-stop-controls";
-import { AccessoryModal } from "@/components/ui/accessory-modal";
-import { TargetSettingModal } from "@/components/ui/target-setting-modal";
-import { useUser } from '@/contexts/UserContext';
+const TOTAL_TIME = 60;
+const MAX_HR = 150;
+const TARGET_HR: [number, number] = [100, 130];
+
+// Distance is derived from the Force machine's leg-carriage position feed (cm).
+const M_PER_CM = 0.01; // 1 cm of carriage travel = 0.01 m
 
 export default function ExerciseScreen() {
-  // 获取路由参数
-  const params = useLocalSearchParams();
-  const userId = params.id as string;
-  
-  // 使用全局用户上下文
+  const { c } = useTokens();
+  const { t } = useI18n();
   const { selectedUser } = useUser();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const userId = params.id || selectedUser?.id;
 
-  // 状态管理
   const [user, setUser] = useState<User | null>(null);
-  const [climbingDistance, setClimbingDistance] = useState(342);
-
+  const [started, setStarted] = useState(false);
+  const [remaining, setRemaining] = useState(TOTAL_TIME);
   const [leftResistance, setLeftResistance] = useState(5);
   const [rightResistance, setRightResistance] = useState(4);
-  const [isExerciseStarted, setIsExerciseStarted] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [exerciseTime, setExerciseTime] = useState(60);
-  const [remainingTime, setRemainingTime] = useState(60);
-  const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
-  const [isTargetSettingModalVisible, setIsTargetSettingModalVisible] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<string>('力量');
-  const [trainingTargets, setTrainingTargets] = useState({ duration: 300, distance: 500, calories: 500 });
-  const [heartRateAlert, setHeartRateAlert] = useState(false);
-  
+  const [heartRate, setHeartRate] = useState(0);
+  const [distance, setDistance] = useState(0);
+  const [showTargets, setShowTargets] = useState(false);
+  const [targets, setTargets] = useState({ duration: 300, distance: 500, calories: 500 });
+  const [ring, setRing] = useState(280);
 
-  // 蓝牙功能
-  const {sendResistanceData} = useBluetooth();
+  // latest Force-machine leg position (cm), sampled once per second to accumulate
+  // distance. prevSampleLowerPos is the baseline from the previous tick; null until
+  // the first sample after the assessment starts.
+  const lowerPosRef = useRef(0);
+  const prevSampleLowerPosRef = useRef<number | null>(null);
 
-  // 圆形进度条配置
-  const radius = 150;
-  const strokeWidth = 15;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (remainingTime / exerciseTime) * circumference;
-
-  // 处理开始运动
-  const handleStartExercise = () => {
-    // 这里直接开始运动
-    setIsExerciseStarted(true);
-    setIsPaused(false);
-    setRemainingTime(exerciseTime);
-  };
-
-  // 处理暂停/继续运动
-  const handlePauseResumeExercise = () => {
-    // 简单切换暂停状态，具体逻辑现在由StartStopControls组件处理
-    setIsPaused(prev => !prev);
-  };
-
-  // 处理暂停状态变化
-  const handlePausedChange = (isPaused: boolean) => {
-    setIsPaused(isPaused);
-  };
-
-  // 处理结束运动
-  const handleEndExercise = () => {
-    setIsExerciseStarted(false);
-    setIsPaused(false);
-    setRemainingTime(exerciseTime);
-    setHeartRateAlert(false);
-  };
-
-  // 根据userId获取用户信息，优先使用路由参数，否则使用全局选中的用户
   useEffect(() => {
-    const loadUser = async () => {
-      let targetUserId = userId;
-      
-      // 如果路由参数中没有提供userId，使用全局选中的用户
-      if (!targetUserId && selectedUser) {
-        targetUserId = selectedUser.id;
-      }
-      
-      if (targetUserId) {
-        const userInfo = await DatabaseService.getUserById(targetUserId);
-        setUser(userInfo);
-      }
-    };
-    void loadUser();
+    if (userId) DatabaseService.getUserById(userId).then((u) => u && setUser(u));
   }, [userId, selectedUser]);
 
-  const navigation = useNavigation();
-  useLayoutEffect(() => {
-    navigation.setOptions({title: `动态姿势评估 ${user?.name || userId}`});
-  }, [navigation, userId, user]);
-
-  // 运动计时
+  // real heart-rate sensor — connection managed by BluetoothProvider
   useEffect(() => {
-    if (isExerciseStarted && !isPaused && remainingTime > 0) {
-      const timer = setTimeout(() => {
-        setRemainingTime(prev => prev - 1);
-      }, 1000);
+    KYTOHeartRateService.setHeartRateCallback(setHeartRate);
+  }, []);
 
+  // real leg-carriage position via ForceService — connection managed by
+  // BluetoothProvider, this screen only registers its callback.
+  const handleForceData = useCallback((f: ForceData) => {
+    lowerPosRef.current = f.lowerPosition;
+  }, []);
+
+  useEffect(() => {
+    ForceService.setForceCallback(handleForceData);
+  }, [handleForceData]);
+
+  // countdown
+  useEffect(() => {
+    if (started && remaining > 0) {
+      const timer = setTimeout(() => setRemaining((p) => p - 1), 1000);
       return () => clearTimeout(timer);
-    } else if (remainingTime === 0) {
-      // 运动结束
-      setIsExerciseStarted(false);
     }
-  }, [isExerciseStarted, isPaused, remainingTime]);
+    if (remaining === 0) setStarted(false);
+  }, [started, remaining]);
 
-
-
-  // 当阻力值变化时发送蓝牙信号
+  // per-second distance sampling — accumulates leg-carriage travel from the real
+  // Force-machine position feed while the assessment runs. Distance stays at 0 until
+  // a Force machine is connected and moving.
   useEffect(() => {
-    // 发送阻力数据
-    const sendResistance = async () => {
-      await sendResistanceData({
-        upperLeft: leftResistance,
-        upperRight: rightResistance,
-        lowerLeft: leftResistance,
-        lowerRight: rightResistance
-      });
-    };
+    if (!started) return;
+    const interval = setInterval(() => {
+      const pos = lowerPosRef.current;
+      const prev = prevSampleLowerPosRef.current;
+      prevSampleLowerPosRef.current = pos;
+      if (prev === null) return; // first tick establishes the baseline
+      setDistance((d) => d + Math.abs(pos - prev) * M_PER_CM);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [started]);
 
-    sendResistance();
-  }, [leftResistance, rightResistance, sendResistanceData]);
+  // reset distance when the assessment starts
+  useEffect(() => {
+    if (started) {
+      setDistance(0);
+      prevSampleLowerPosRef.current = null;
+    }
+  }, [started]);
 
+  // send resistance
+  useEffect(() => {
+    void ForceService.sendResistanceData({
+      upperLeft: leftResistance,
+      lowerLeft: leftResistance,
+      upperRight: rightResistance,
+      lowerRight: rightResistance,
+    });
+  }, [leftResistance, rightResistance]);
+
+  const hrColor = hrZoneColor(heartRate, MAX_HR);
+  const hrAlert = heartRate > 0 && hrZoneKey(heartRate, MAX_HR) === 'max';
+
+  const fmt = (s: number) =>
+    `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+
+  const onRingLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    setRing(Math.min(w * 0.7, 360));
+  };
+
+  const stroke = 14;
+  const r = (ring - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const progress = (remaining / TOTAL_TIME) * circ;
+
+  const handleEnd = () => {
+    setStarted(false);
+    setRemaining(TOTAL_TIME);
+    setDistance(0);
+  };
 
   return (
-    <ThemedView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Header
+        title={t('dynamicAssessmentTitle')}
+        right={
+          user ? (
+            <View style={styles.headerUser}>
+              <Avatar name={user.name} size={32} />
+              <Txt variant="caption">{user.name}</Txt>
+            </View>
+          ) : undefined
+        }
+      />
 
-      {/* 心率过高警报 */}
-      {heartRateAlert && (
-        <View style={styles.heartRateAlert}>
-          <ThemedText style={styles.heartRateAlertText}>
-            心率过高
-            请停止运动
-          </ThemedText>
-        </View>
-      )}
+      <AlertBanner message={t('hrTooHigh')} visible={hrAlert} />
 
-      {/* 主内容区域 */}
-      <View style={styles.mainContent}>
-        <View>
-          <ThemedText style={styles.timeText}>
-            {Math.floor(remainingTime / 60).toString().padStart(2, '0')}:{Math.floor(remainingTime % 60).toString().padStart(2, '0')}
-          </ThemedText>
-        </View>
-
-        {/* 运动时长圆形显示 */}
-        <View style={styles.timeCircle}>
-          <Svg width={radius * 2} height={radius * 2} style={styles.progressCircle}>
-            {/* 背景圆 */}
+      <View style={styles.body}>
+        <View style={styles.ringWrap} onLayout={onRingLayout}>
+          <Svg width={ring} height={ring}>
+            <Circle cx={ring / 2} cy={ring / 2} r={r} stroke={c.surface2} strokeWidth={stroke} fill="none" />
             <Circle
-              cx={radius}
-              cy={radius}
-              r={radius - strokeWidth / 2}
-              stroke="#E8E8E8"
-              strokeWidth={strokeWidth}
+              cx={ring / 2}
+              cy={ring / 2}
+              r={r}
+              stroke={hrAlert ? c.danger : c.primary}
+              strokeWidth={stroke}
               fill="none"
-            />
-            {/* 进度圆 */}
-            <Circle
-              cx={radius}
-              cy={radius}
-              r={radius - strokeWidth / 2}
-              stroke={heartRateAlert ? "#FF0000" : "#FF7F50"}
-              strokeWidth={strokeWidth}
-              fill="none"
-              strokeDasharray={circumference}
-              strokeDashoffset={isExerciseStarted ? progress : circumference}
+              strokeDasharray={circ}
+              strokeDashoffset={started ? circ - progress : circ}
               strokeLinecap="round"
               rotation={-90}
-              origin={`${radius}, ${radius}`}
+              origin={`${ring / 2}, ${ring / 2}`}
             />
           </Svg>
-          <View style={styles.timeLabelContainer}>
-            <ThemedText style={styles.timeLabel}>
-              运动时长
-            </ThemedText>
+          <View style={styles.ringCenter}>
+            <Txt variant="caption" color={c.textSecondary}>{t('duration')}</Txt>
+            <Metric value={fmt(remaining)} size="metricLg" color={hrAlert ? c.danger : c.text} />
+            <Txt variant="caption" color={c.textMuted}>{t('of')} {fmt(TOTAL_TIME)}</Txt>
           </View>
         </View>
 
-        {/* 心率 */}
-        <TouchableOpacity
-          style={styles.heartRate}
-          onPress={() => setIsAccessoryModalVisible(true)}
-        >
-          <HeartRate
-            maxHeartRate={150}
-            targetHeartRateRange={[100, 130]}
-          />
-        </TouchableOpacity>
+        <View style={styles.metricsRow}>
+          <Card style={[styles.flex1, hrAlert ? { borderColor: c.danger, borderWidth: 1.5 } : null]}>
+            <Txt variant="caption" color={c.textSecondary}>{t('heartRate')}</Txt>
+            <Metric value={heartRate || '--'} size="metricMd" color={hrColor} />
+            <Txt variant="caption" color={c.textMuted}>
+              {t('target')} {TARGET_HR[0]}–{TARGET_HR[1]} · {t('max')} {MAX_HR}
+            </Txt>
+          </Card>
+          <Card style={styles.flex1}>
+            <Txt variant="caption" color={c.textSecondary}>{t('distance')}</Txt>
+            <Metric value={Math.round(distance)} size="metricMd" />
+            <Txt variant="caption" color={c.textMuted}>m · {t('target')} {targets.distance}m</Txt>
+          </Card>
+        </View>
 
-        {/* Distance组件 */}
-        <Distance
-          style={styles.distance}
-          distance={climbingDistance}
-          targetDistance={trainingTargets.distance}
-          onTargetPress={() => setIsTargetSettingModalVisible(true)}
-        />
+        <View style={styles.metricsRow}>
+          <View style={styles.flex1}>
+            <Stepper label={t('leftResistance')} value={leftResistance} min={0} max={10} onChange={setLeftResistance} />
+          </View>
+          <View style={styles.flex1}>
+            <Stepper label={t('rightResistance')} value={rightResistance} min={0} max={10} onChange={setRightResistance} />
+          </View>
+        </View>
 
-        {/* 阻力控制 */}
-        <ResistanceControl
-          style={styles.resistanceControlLeft}
-          title="左侧阻力"
-          initialValue={leftResistance}
-          onValueChange={setLeftResistance}
-          isLeft
-          resistanceType="upperLeft"
-        />
-        <ResistanceControl
-          style={styles.resistanceControlRight}
-          title="右侧阻力"
-          initialValue={rightResistance}
-          onValueChange={setRightResistance}
-          isRight
-          resistanceType="upperRight"
-        />
+        <PostureCard />
       </View>
 
-      {/* 开始运动/暂停/结束运动按钮 */}
-      <StartStopControls
-        isExerciseStarted={isExerciseStarted}
-        isPaused={isPaused}
-        onStart={handleStartExercise}
-        onPauseResume={handlePauseResumeExercise}
-        onEnd={handleEndExercise}
-        onPausedChange={handlePausedChange}
-      ></StartStopControls>
+      <View style={[styles.controlBar, { backgroundColor: c.surface, borderTopColor: c.border }]}>
+        {!started ? (
+          <AppButton label={t('start')} icon="play" full onPress={() => setStarted(true)} />
+        ) : (
+          <>
+            <AppButton label={t('setTargets')} variant="secondary" icon="options-outline" full onPress={() => setShowTargets(true)} />
+            <AppButton label={t('endSession')} variant="danger" icon="stop" full onPress={handleEnd} />
+          </>
+        )}
+      </View>
 
-      {/* 连接配件弹窗 */}
-      <AccessoryModal
-        visible={isAccessoryModalVisible}
-        onClose={() => setIsAccessoryModalVisible(false)}
-        selectedMode={selectedMode}
-      />
-
-      {/* 目标设置弹窗 */}
       <TargetSettingModal
-        visible={isTargetSettingModalVisible}
-        initialTargets={trainingTargets}
-        showOnlyDistance={true}
-        onClose={(targets) => {
-          setIsTargetSettingModalVisible(false);
-          if (targets) {
-            setTrainingTargets(targets);
-            // 更新距离目标
-            // 这里可以根据需要添加其他逻辑
-          }
+        visible={showTargets}
+        initialTargets={targets}
+        showOnlyDistance
+        onClose={(next) => {
+          setShowTargets(false);
+          if (next) setTargets(next);
         }}
       />
-    </ThemedView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  heartRateAlert: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FF6B6B',
-    paddingVertical: 20,
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  heartRateAlertText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  progressCircle: {
-    position: 'absolute',
-  },
-  timeLabelContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  exerciseControls: {
+  headerUser: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  body: { flex: 1, padding: Tokens.space.base, gap: Tokens.space.lg },
+  ringWrap: { alignItems: 'center', justifyContent: 'center', marginTop: Tokens.space.lg },
+  ringCenter: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  metricsRow: { flexDirection: 'row', gap: Tokens.space.md },
+  flex1: { flex: 1 },
+  controlBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    gap: Tokens.space.md,
+    padding: Tokens.space.base,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  controlButton: {
-    backgroundColor: '#FF7F50',
-    paddingVertical: 18,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '48%',
-  },
-  controlButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  endButton: {
-    backgroundColor: '#FF6B6B',
-  },
-  mainContent: {
-    flex: 1,
-    alignItems: 'center',
-    marginTop: 100,
-    padding: 20,
-    paddingTop: 20,
-    width: '100%',
-  },
-  timeCircle: {
-    width: 450,
-    height: 450,
-    borderRadius: 225,
-    backgroundColor: '#E8E8E8',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 40,
-  },
-  timeText: {
-    padding: 10,
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 10,
-  },
-  timeLabel: {
-    fontSize: 18,
-    color: '#000',
-    opacity: 0.7,
-  },
-  heartRate: {
-    position: 'absolute',
-    bottom: 380,
-    right: 0,
-    width: '20%',
-  },
-  distance: {
-    position: 'absolute',
-    bottom: 380,
-    left: 0,
-    width: '20%',
-  },
-  resistanceControlLeft: {
-    position: 'absolute',
-    bottom: 200,
-    left: 0,
-    width: '30%',
-  },
-  resistanceControlRight: {
-    position: 'absolute',
-    bottom: 200,
-    right: 0,
-    width: '30%',
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#000',
-    opacity: 0.7,
-    marginBottom: 5,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  heartRateMax: {
-    fontSize: 12,
-    color: '#000',
-    opacity: 0.5,
-    marginTop: 5,
-  },
-  resistanceCard: {
-    backgroundColor: '#F5E4DC',
-    padding: 20,
-    width: '48%',
-    alignItems: 'center',
-  },
-  leftResistanceCard: {
-    borderTopLeftRadius: 30,
-    borderBottomLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  rightResistanceCard: {
-    borderTopLeftRadius: 15,
-    borderBottomLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderBottomRightRadius: 15,
-  },
-  resistanceLabel: {
-    fontSize: 14,
-    color: '#000',
-    opacity: 0.7,
-    marginBottom: 15,
-  },
-  resistanceControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  resistanceButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FF7F50',
-  },
-  resistanceValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    minWidth: 30,
-    textAlign: 'center',
-  },
-
 });

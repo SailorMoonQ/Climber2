@@ -43,8 +43,8 @@ export function ResistanceControl({
       const resistanceData: ResistanceData = {
         upperLeft: resistanceType === 'upperLeft' ? newResistance : 0,
         upperRight: resistanceType === 'upperRight' ? newResistance : 0,
-        lowerLeft: resistanceType === 'upperLeft' ? newResistance : 0,
-        lowerRight: resistanceType === 'upperRight' ? newResistance : 0
+        lowerLeft: resistanceType === 'lowerLeft' ? newResistance : 0,
+        lowerRight: resistanceType === 'lowerRight' ? newResistance : 0
       };
       void ForceService.sendResistanceData(resistanceData);
     }
@@ -61,8 +61,8 @@ export function ResistanceControl({
       const resistanceData: ResistanceData = {
         upperLeft: resistanceType === 'upperLeft' ? newResistance : 0,
         upperRight: resistanceType === 'upperRight' ? newResistance : 0,
-        lowerLeft: resistanceType === 'upperLeft' ? newResistance : 0,
-        lowerRight: resistanceType === 'upperRight' ? newResistance : 0
+        lowerLeft: resistanceType === 'lowerLeft' ? newResistance : 0,
+        lowerRight: resistanceType === 'lowerRight' ? newResistance : 0
       };
       void ForceService.sendResistanceData(resistanceData);
     }

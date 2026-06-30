@@ -1,9 +1,10 @@
 import React from 'react';
-import { Modal, ScrollView, StyleSheet, TextStyle, TouchableOpacity, ViewStyle } from 'react-native';
-import { ThemedText } from '../themed-text';
-import { ThemedView } from '../themed-view';
+import { Modal, ScrollView, StyleSheet, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Device } from "react-native-ble-plx";
+import { Elevation, Tokens } from '@/constants/theme';
+import { useTokens } from '@/hooks/use-tokens';
+import { Txt } from '@/components/ui/primitives';
 
 
 interface DeviceListModalProps {
@@ -39,7 +40,7 @@ export const DeviceListModal: React.FC<DeviceListModalProps> = ({
   onRefresh,
   onSelectDevice,
   onClose,
-  tintColor = '#007AFF',
+  tintColor,
   title = '选择设备',
   emptyText = '未找到设备',
   refreshText = '刷新设备',
@@ -57,54 +58,63 @@ export const DeviceListModal: React.FC<DeviceListModalProps> = ({
   closeButtonStyle,
   closeButtonTextStyle,
 }) => {
+  const { c } = useTokens();
+  const accent = tintColor ?? c.primary;
   return (
-    <Modal 
-      visible={visible} 
-      animationType="slide" 
+    <Modal
+      visible={visible}
+      animationType="slide"
       transparent={true}
       onRequestClose={onClose}
     >
-      <ThemedView style={[styles.modalOverlay, modalOverlayStyle]}>
-        <ThemedView style={[styles.modalContent, modalContentStyle]}>
-          <ThemedText type="subtitle" style={[styles.modalTitle, modalTitleStyle]}>{title}</ThemedText>
-          <TouchableOpacity 
-            style={[styles.refreshButton, refreshButtonStyle]} 
+      <View style={[styles.modalOverlay, modalOverlayStyle]}>
+        <View
+          style={[
+            styles.modalContent,
+            { backgroundColor: c.surface, borderColor: c.border },
+            Elevation.sheet,
+            modalContentStyle,
+          ]}
+        >
+          <Txt variant="subtitle" style={[styles.modalTitle, modalTitleStyle]}>{title}</Txt>
+          <TouchableOpacity
+            style={[styles.refreshButton, { backgroundColor: c.surface2 }, refreshButtonStyle]}
             onPress={onRefresh}
             disabled={scanning}
           >
-            <Ionicons 
-              name={scanning ? "refresh-circle" : "refresh"} 
-              size={20} 
-              color={tintColor} 
+            <Ionicons
+              name={scanning ? "refresh-circle" : "refresh"}
+              size={20}
+              color={accent}
             />
-            <ThemedText>{scanning ? scanningText : refreshText}</ThemedText>
+            <Txt style={styles.refreshLabel}>{scanning ? scanningText : refreshText}</Txt>
           </TouchableOpacity>
           <ScrollView style={styles.deviceList}>
             {devices.map((device) => (
-              <TouchableOpacity 
-                key={device.id} 
-                style={[styles.deviceItem, deviceItemStyle]}
+              <TouchableOpacity
+                key={device.id}
+                style={[styles.deviceItem, { borderBottomColor: c.border }, deviceItemStyle]}
                 onPress={() => onSelectDevice(device)}
               >
-                <Ionicons name="bluetooth" size={20} color={tintColor} />
-                <ThemedView style={[styles.deviceInfo, deviceInfoStyle]}>
-                  <ThemedText style={[styles.deviceName, deviceNameStyle]}>{device.name || '未知设备'}</ThemedText>
-                  <ThemedText style={[styles.deviceId, deviceIdStyle]}>{device.id}</ThemedText>
-                </ThemedView>
+                <Ionicons name="bluetooth" size={20} color={accent} />
+                <View style={[styles.deviceInfo, deviceInfoStyle]}>
+                  <Txt style={[styles.deviceName, deviceNameStyle]}>{device.name || '未知设备'}</Txt>
+                  <Txt variant="caption" color={c.textSecondary} style={[styles.deviceId, deviceIdStyle]}>{device.id}</Txt>
+                </View>
               </TouchableOpacity>
             ))}
             {devices.length === 0 && !scanning && (
-              <ThemedText style={[styles.noDevicesText, noDevicesTextStyle]}>{emptyText}</ThemedText>
+              <Txt color={c.textSecondary} style={[styles.noDevicesText, noDevicesTextStyle]}>{emptyText}</Txt>
             )}
           </ScrollView>
-          <TouchableOpacity 
-            style={[styles.closeButton, closeButtonStyle]} 
+          <TouchableOpacity
+            style={[styles.closeButton, { backgroundColor: c.surface2 }, closeButtonStyle]}
             onPress={onClose}
           >
-            <ThemedText style={[styles.closeButtonText, closeButtonTextStyle]}>{closeText}</ThemedText>
+            <Txt style={[styles.closeButtonText, closeButtonTextStyle]}>{closeText}</Txt>
           </TouchableOpacity>
-        </ThemedView>
-      </ThemedView>
+        </View>
+      </View>
     </Modal>
   );
 };
@@ -114,41 +124,43 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Tokens.space.lg,
     width: '80%',
     maxHeight: '80%',
   },
   modalTitle: {
-    marginBottom: 20,
+    marginBottom: Tokens.space.lg,
     textAlign: 'center',
   },
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 5,
-    marginBottom: 10,
+    gap: Tokens.space.sm,
+    padding: Tokens.space.md,
+    borderRadius: Tokens.radius.md,
+    marginBottom: Tokens.space.md,
+  },
+  refreshLabel: {
+    fontWeight: '600',
   },
   deviceList: {
     maxHeight: 300,
-    marginBottom: 20,
+    marginBottom: Tokens.space.lg,
   },
   deviceItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    padding: Tokens.space.base,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   deviceInfo: {
-    marginLeft: 10,
+    marginLeft: Tokens.space.md,
     flex: 1,
   },
   deviceName: {
@@ -156,17 +168,14 @@ const styles = StyleSheet.create({
   },
   deviceId: {
     fontSize: 12,
-    opacity: 0.7,
   },
   noDevicesText: {
     textAlign: 'center',
-    padding: 20,
-    opacity: 0.7,
+    padding: Tokens.space.lg,
   },
   closeButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 5,
+    padding: Tokens.space.md,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center',
   },
   closeButtonText: {

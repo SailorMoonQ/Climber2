@@ -1,6 +1,8 @@
 import React from 'react';
-import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ThemedText } from '../themed-text';
+import { Modal, StyleSheet, View } from 'react-native';
+import { Elevation, Tokens } from '@/constants/theme';
+import { useTokens } from '@/hooks/use-tokens';
+import { AppButton, Txt } from './primitives';
 
 interface PauseModalProps {
   visible: boolean;
@@ -13,6 +15,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onContinue,
   onEnd,
 }) => {
+  const { c } = useTokens();
   return (
     <Modal
       visible={visible}
@@ -21,25 +24,29 @@ export const PauseModal: React.FC<PauseModalProps> = ({
       onRequestClose={onContinue}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <ThemedText style={styles.modalTitle}>运动已暂停</ThemedText>
+        <View
+          style={[
+            styles.modalContent,
+            { backgroundColor: c.surface, borderColor: c.border },
+            Elevation.sheet,
+          ]}
+        >
+          <Txt variant="title" style={styles.modalTitle}>
+            运动已暂停
+          </Txt>
           <View style={styles.modalButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.modalButton, styles.continueButton]}
+            <AppButton
+              label="继续运动"
+              variant="secondary"
               onPress={onContinue}
-            >
-              <ThemedText style={styles.modalButtonText}>
-                继续运动
-              </ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalButton, styles.endModalButton]}
+              full
+            />
+            <AppButton
+              label="结束运动"
+              variant="danger"
               onPress={onEnd}
-            >
-              <ThemedText style={styles.modalButtonText}>
-                结束运动
-              </ThemedText>
-            </TouchableOpacity>
+              full
+            />
           </View>
         </View>
       </View>
@@ -55,41 +62,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: Tokens.radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Tokens.space.lg,
     width: '80%',
     maxHeight: '80%',
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 20,
+    marginBottom: Tokens.space.lg,
     textAlign: 'center',
   },
   modalButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 30,
-  },
-  modalButton: {
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '48%',
-  },
-  continueButton: {
-    backgroundColor: '#F5E4DC',
-  },
-  endModalButton: {
-    backgroundColor: '#FF6B6B',
-  },
-  modalButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    marginTop: Tokens.space.lg,
+    gap: Tokens.space.md,
   },
 });

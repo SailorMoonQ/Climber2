@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "version": "54.0.35",
   "scripts": {
+    "postinstall": "patch-package",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
@@ -54,6 +55,7 @@
     "@types/react": "~19.1.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
   }
 }

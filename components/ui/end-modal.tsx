@@ -1,7 +1,9 @@
 import React from 'react';
 import { Animated, Modal, StyleSheet, View } from 'react-native';
-import { ThemedText } from '../themed-text';
 import { Ionicons } from '@expo/vector-icons';
+import { Elevation, Tokens } from '@/constants/theme';
+import { useTokens } from '@/hooks/use-tokens';
+import { Txt } from './primitives';
 
 interface EndModalProps {
   visible: boolean;
@@ -12,6 +14,7 @@ export const EndModal: React.FC<EndModalProps> = ({
                                                     visible,
                                                     isSavingData,
                                                   }) => {
+  const { c } = useTokens();
   const spinValue = new Animated.Value(0);
 
   // 创建旋转动画
@@ -42,15 +45,23 @@ export const EndModal: React.FC<EndModalProps> = ({
       }}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <ThemedText style={styles.modalTitle}>运动结束，请放松</ThemedText>
-          <ThemedText style={styles.savingDataText}>
+        <View
+          style={[
+            styles.modalContent,
+            { backgroundColor: c.surface, borderColor: c.border },
+            Elevation.sheet,
+          ]}
+        >
+          <Txt variant="title" style={styles.modalTitle}>
+            运动结束，请放松
+          </Txt>
+          <Txt variant="body" color={c.textSecondary} style={styles.savingDataText}>
             {isSavingData ? '正在保存运动数据...' : '运动数据已保存'}
-          </ThemedText>
+          </Txt>
           {isSavingData && (
             <View style={styles.loadingContainer}>
               <Animated.View style={{transform: [{rotate: spin}]}}>
-                <Ionicons name="refresh" size={40} color="#FF7F50"/>
+                <Ionicons name="refresh" size={40} color={c.primary}/>
               </Animated.View>
             </View>
           )}
@@ -68,27 +79,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: Tokens.radius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Tokens.space.lg,
     width: '80%',
     maxHeight: '80%',
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 20,
+    marginBottom: Tokens.space.lg,
     textAlign: 'center',
   },
   savingDataText: {
-    fontSize: 16,
-    color: '#000',
-    marginTop: 20,
+    marginTop: Tokens.space.lg,
     textAlign: 'center',
   },
   loadingContainer: {
-    marginTop: 30,
+    marginTop: Tokens.space.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },

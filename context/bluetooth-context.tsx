@@ -8,10 +8,6 @@ interface BluetoothContextType {
   connectedDevice: any;
   devices: any[];
   scanning: boolean;
-  startScan: () => Promise<void>;
-  stopScan: () => void;
-  connectToDevice: (device: any) => Promise<boolean>;
-  disconnectFromDevice: () => Promise<void>;
   sendResistanceData: (resistanceData: ResistanceData) => Promise<boolean>;
   sendData: (commandData: any) => Promise<boolean>;
   parsedData: any;

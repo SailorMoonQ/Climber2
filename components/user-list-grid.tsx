@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import React, { useEffect, useState } from 'react';
+import { Alert, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useNavigation, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { User } from '@/interface/user.interface';
 import { useUser } from '@/contexts/UserContext';
+import { useTokens } from '@/hooks/use-tokens';
+import { useI18n } from '@/i18n';
+import { Tokens } from '@/constants/theme';
+import { Avatar, Txt } from '@/components/ui/primitives';
 
-interface UserListGridProps {
+export interface UserListGridProps {
   users: User[];
   onUserSelect: (user: User) => void;
   onUserEdit: (user: User) => void;
@@ -17,346 +17,198 @@ interface UserListGridProps {
 }
 
 export default function UserListGrid({
-                                       users,
-                                       onUserSelect,
-                                       onUserEdit,
-                                       onUserDelete
-                                     }: UserListGridProps) {
-  const navigation = useNavigation();
+  users,
+  onUserSelect,
+  onUserEdit,
+  onUserDelete,
+}: UserListGridProps) {
+  const { c } = useTokens();
+  const { t } = useI18n();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const tintColor = Colors[colorScheme ?? 'light'].tint;
-  const { selectedUser: globalSelectedUser, setSelectedUser: setGlobalSelectedUser } = useUser();
+  const { selectedUser, setSelectedUser } = useUser();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredUsers, setFilteredUsers] = useState<User[]>(users);
-  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
-  // 搜索功能
   useEffect(() => {
     if (searchQuery === '') {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(user =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.id.includes(searchQuery) ||
-        user.age.toString().includes(searchQuery)
+      const q = searchQuery.toLowerCase();
+      setFilteredUsers(
+        users.filter(
+          (u) =>
+            u.name.toLowerCase().includes(q) ||
+            u.id.includes(searchQuery) ||
+            u.age.toString().includes(searchQuery),
+        ),
       );
-      setFilteredUsers(filtered);
     }
   }, [searchQuery, users]);
 
-  const renderUserItem = ({item}: { item: User }) => (
-    <TouchableOpacity
-      style={styles.userItem}
-      onPress={() => {
-        setGlobalSelectedUser(item);
-        onUserSelect(item);
-      }}
-    >
-      <ThemedView style={styles.userAvatar}>
-        <Ionicons name="person" size={40} color={tintColor}/>
-      </ThemedView>
-      <ThemedText style={styles.userName}>{item.name}</ThemedText>
-      <ThemedText style={styles.userDetails}>
-        {item.gender} | {item.age}岁
-      </ThemedText>
-      <TouchableOpacity
-        style={styles.editButton}
-        onPress={(e) => {
-          e.stopPropagation(); // 防止触发父元素的点击事件
-          onUserEdit(item);
-        }}
-      >
-        <Ionicons name="create-outline" size={16} color={tintColor}/>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
+  const handleSelect = (user: User) => {
+    setSelectedUser(user);
+    onUserSelect(user);
+  };
 
-  const addNewUser = () => {
-    router.push('/user?mode=add')
+  const handleDelete = (user: User) => {
+    Alert.alert(
+      t('deleteUser'),
+      t('deleteUserConfirm'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: () => onUserDelete(user),
+        },
+      ],
+    );
   };
 
   return (
-    <ThemedView style={styles.container}>
-      {/* 顶部搜索条和新增按钮 */}
-      <ThemedView style={styles.header}>
-        <ThemedView style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={tintColor}/>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="输入姓名/ID/年龄搜索"
-            placeholderTextColor={Colors[colorScheme ?? 'light'].text}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </ThemedView>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => addNewUser()}
-        >
-          <ThemedText style={styles.addButtonText}>新增</ThemedText>
-        </TouchableOpacity>
-      </ThemedView>
-
-      <ScrollView>
-        <FlatList
-          data={filteredUsers}
-          renderItem={renderUserItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.userGrid}
-          numColumns={4}
-          scrollEnabled={false}
+    <View>
+      {/* Search bar */}
+      <View style={[styles.searchRow, { backgroundColor: c.surface2, borderRadius: Tokens.radius.md }]}>
+        <Ionicons name="search" size={18} color={c.textMuted} style={{ marginRight: Tokens.space.sm }} />
+        <TextInput
+          style={[styles.searchInput, { color: c.text }]}
+          placeholder={t('searchUserPlaceholder')}
+          placeholderTextColor={c.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
-      </ScrollView>
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={16} color={c.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
 
-      {/* 底部按钮 */}
-      <ThemedView style={styles.bottomButtons}>
-        <TouchableOpacity
-          style={[styles.bottomButton, styles.deleteButton]}
-          onPress={() => setIsDeleteModalVisible(true)}
-        >
-          <Ionicons name="trash-outline" size={24} color="#fff"/>
-          <ThemedText style={styles.bottomButtonText}>删除用户</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.bottomButton, styles.assessmentButton]}
-          onPress={() => {
-            if (globalSelectedUser) {
-              router.push(`/exercise?id=${globalSelectedUser.id}`);
-            }
-          }}
-        >
-          <Ionicons name="clipboard-outline" size={24} color="#fff"/>
-          <ThemedText style={styles.bottomButtonText}>评估</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.bottomButton, styles.trainingButton]}
-          onPress={() => {
-            if (globalSelectedUser) {
-              router.push(`/free-training?id=${globalSelectedUser.id}`);
-            }
-          }}
-        >
-          <Ionicons name="fitness-outline" size={24} color="#fff"/>
-          <ThemedText style={styles.bottomButtonText}>训练</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.bottomButton, styles.gameButton]}
-        >
-          <Ionicons name="game-controller-outline" size={24} color="#fff"/>
-          <ThemedText style={styles.bottomButtonText}>情景游戏</ThemedText>
-        </TouchableOpacity>
-      </ThemedView>
+      {/* Patient cards — flexWrap grid */}
+      <View style={styles.grid}>
+        {filteredUsers.map((user) => {
+          const isSelected = selectedUser?.id === user.id;
+          return (
+            <TouchableOpacity
+              key={user.id}
+              activeOpacity={0.8}
+              onPress={() => handleSelect(user)}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: isSelected ? c.primary : c.surface,
+                  borderColor: isSelected ? c.primary : c.border,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderRadius: Tokens.radius.md,
+                },
+              ]}
+            >
+              {/* Edit badge — absolute within card */}
+              <TouchableOpacity
+                style={[styles.editBadge, { backgroundColor: isSelected ? c.onPrimary : c.surface2 }]}
+                onPress={() => onUserEdit(user)}
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={13}
+                  color={isSelected ? c.primary : c.textSecondary}
+                />
+              </TouchableOpacity>
 
-      {/* 删除确认模态框 */}
-      <Modal
-        visible={isDeleteModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsDeleteModalVisible(false)}
-      >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            <ThemedText style={styles.modalTitle}>删除用户</ThemedText>
-            <ThemedText style={styles.modalMessage}>要删除用户吗？</ThemedText>
-            <ThemedView style={styles.modalButtons}>
+              {/* Delete badge */}
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setIsDeleteModalVisible(false)}
+                style={[styles.deleteBadge, { backgroundColor: isSelected ? c.onPrimary : c.surface2 }]}
+                onPress={() => handleDelete(user)}
+                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
               >
-                <Ionicons name="close" size={24} color="#000"/>
+                <Ionicons
+                  name="trash-outline"
+                  size={13}
+                  color={isSelected ? c.danger : c.textMuted}
+                />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.destructiveButton]}
-                onPress={() => {
-                  setIsDeleteModalVisible(false);
-                  if (globalSelectedUser) {
-                    onUserDelete(globalSelectedUser);
-                  }
-                }}
+
+              <Avatar name={user.name} size={44} filled={isSelected} />
+
+              <Txt
+                variant="label"
+                color={isSelected ? c.onPrimary : c.text}
+                style={styles.cardName}
+                numberOfLines={1}
               >
-                <Ionicons name="checkmark" size={24} color="#fff"/>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
-        </ThemedView>
-      </Modal>
-    </ThemedView>
+                {user.name}
+              </Txt>
+              <Txt
+                variant="caption"
+                color={isSelected ? c.onPrimary : c.textSecondary}
+                style={styles.cardMeta}
+                numberOfLines={1}
+              >
+                {user.gender} · {user.age}{t('years')}
+              </Txt>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  userGrid: {
-    marginTop: 20,
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  userItem: {
-    width: '23%',
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 10,
-    marginRight: 10,
-    marginBottom: 15,
-    alignItems: 'center',
-    position: 'relative',
-  },
-  userAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  searchContainer: {
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    width: '90%',
+    paddingHorizontal: Tokens.space.md,
+    minHeight: 48,
+    marginBottom: Tokens.space.md,
   },
   searchInput: {
-    height: 40,
     flex: 1,
-    fontSize: 16,
-    color: '#000',
+    fontSize: 15,
+    minHeight: 48,
   },
-  addButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-  addButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  userName: {
-    fontWeight: '600',
-    fontSize: 14,
-    marginBottom: 3,
-    textAlign: 'center',
-  },
-  userDetails: {
-    fontSize: 12,
-    opacity: 0.7,
-    textAlign: 'center',
-  },
-  editButton: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 3,
-  },
-  bottomButtons: {
+  grid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-    paddingVertical: 10,
+    flexWrap: 'wrap',
+    gap: Tokens.space.sm,
   },
-  bottomButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 5,
-    borderRadius: 10,
+  card: {
     width: '23%',
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingVertical: Tokens.space.md,
+    paddingHorizontal: Tokens.space.sm,
+    position: 'relative',
+    minWidth: 72,
   },
-  bottomButtonText: {
-    color: 'white',
-    fontSize: 12,
-    marginTop: 5,
+  cardName: {
+    marginTop: Tokens.space.xs,
+    textAlign: 'center',
   },
-  deleteButton: {
-    backgroundColor: '#FF3B30',
+  cardMeta: {
+    marginTop: 2,
+    textAlign: 'center',
   },
-  assessmentButton: {
-    backgroundColor: '#007AFF',
-  },
-  trainingButton: {
-    backgroundColor: '#34C759',
-  },
-  gameButton: {
-    backgroundColor: '#AF52DE',
-  },
-  // 模态框样式
-  modalOverlay: {
-    flex: 1,
+  editBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 24,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  deleteBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    width: '80%',
-    maxHeight: '70%',
-  },
-  modalTitle: {
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  modalMessage: {
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  inputGroup: {
-    marginBottom: 15,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 10,
-    marginTop: 5,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  modalButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    width: '48%',
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#ccc',
-  },
-  saveButton: {
-    backgroundColor: '#007AFF',
-  },
-  destructiveButton: {
-    backgroundColor: '#FF3B30',
-  },
-  cancelButtonText: {
-    color: 'black',
-    fontWeight: '600',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  destructiveButtonText: {
-    color: 'white',
-    fontWeight: '600',
+    justifyContent: 'center',
   },
 });

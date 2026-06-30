@@ -1,821 +1,399 @@
-import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useUser } from '@/contexts/UserContext';
 import DatabaseService from '@/services/database-service';
-import { TargetSettingModal, TargetSettingModalProps } from '@/components/ui/target-setting-modal';
-import { StartStopControls } from '@/components/ui/start-stop-controls';
-import { Calories } from "@/components/training-data/calories";
-import { ExerciseDuration } from "@/components/training-data/exercise-duration";
-import { Speed } from "@/components/training-data/speed";
-import { Posture } from "@/components/training-data/posture";
-import { ResistanceControl } from "@/components/ui/resistance-control";
-import { HeartRate } from "@/components/training-data/heart-rate";
-import { ForceBar } from "@/components/force-bar";
-import { Distance } from "@/components/training-data/distance";
-import { AccessoryModal } from "@/components/ui/accessory-modal";
-import { User } from "@/interface/user.interface";
-import { BLEService } from '@/services/bluetooth';
-import { ForceService } from '@/services/force-service';
+import { User } from '@/interface/user.interface';
+import { ForceService, ForceData } from '@/services/force-service';
+import { KYTOHeartRateService } from '@/services/kyto-heartrate-service';
+import { useTokens } from '@/hooks/use-tokens';
+import { useI18n, StringKey } from '@/i18n';
+import { Tokens, hrZoneColor, hrZoneKey } from '@/constants/theme';
+import {
+  AlertBanner,
+  AppButton,
+  Avatar,
+  Card,
+  ConnectionChip,
+  ForceTile,
+  Header,
+  HrZoneRamp,
+  Metric,
+  ProgressBar,
+  Stepper,
+  Txt,
+} from '@/components/ui/primitives';
+import { TargetSettingModal } from '@/components/ui/target-setting-modal';
+import { PostureCard } from '@/components/ui/posture-card';
+import { AccessoryModal } from '@/components/ui/accessory-modal';
+
+const MAX_HR = 150;
+const TARGET_HR: [number, number] = [100, 130];
+
+// Speed/distance/calories are derived from the Force machine's leg-carriage position
+// feed (reported in cm). Tune these to the machine's real spec if needed.
+const M_PER_CM = 0.01; // 1 cm of carriage travel = 0.01 m
+const CALORIE_EFFICIENCY = 0.25; // mechanical→metabolic efficiency (~25%)
+const JOULES_PER_KCAL = 4184;
 
 export default function FreeTrainingScreen() {
-  const colorScheme = useColorScheme();
-  const tintColor = Colors[colorScheme ?? 'light'].tint;
-  
-  // 使用全局用户上下文
+  const { c } = useTokens();
+  const { t } = useI18n();
   const { selectedUser } = useUser();
-  
-  const [user, setUser] = useState<User | null>(null);
+
   const params = useLocalSearchParams<{ id?: string }>();
-  const userIdFromParams = params.id;
-  const userId = userIdFromParams || selectedUser?.id;
+  const userId = params.id || selectedUser?.id;
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (userId) {
-      DatabaseService.getUserById(userId).then(fetchedUser => {
-        if (fetchedUser) {
-          setUser(fetchedUser);
-        }
-      });
+      DatabaseService.getUserById(userId).then((u) => u && setUser(u));
     }
   }, [userId, selectedUser]);
 
   const [trainingStarted, setTrainingStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [showControlPanel, setShowControlPanel] = useState(false);
-  
-  // 训练参数
-  const [paramsState, setParamsState] = useState({
-    resistanceLevel: 5, // 阻力级别
-    speed: 5, // 速度
-  });
-  
-  // 阻力设置
+
   const [leftResistance, setLeftResistance] = useState(5);
   const [rightResistance, setRightResistance] = useState(5);
-  
-  // 目标设置
+
   const [showTargetModal, setShowTargetModal] = useState(false);
-  const [trainingTargets, setTrainingTargets] = useState<TargetSettingModalProps['initialTargets']>({
-    duration: 300, // 默认5分钟
-    distance: 100, // 默认100米
-    calories: 500, // 默认500千卡
+  const [showAccessory, setShowAccessory] = useState(false);
+  const [selectedMode, setSelectedMode] = useState('有氧');
+  const [trainingTargets, setTrainingTargets] = useState({
+    duration: 300,
+    distance: 100,
+    calories: 500,
   });
-  
-  // 实时训练数据
-  const [currentDuration, setCurrentDuration] = useState(0); // 运动时长（秒）
-  const [currentSpeed, setCurrentSpeed] = useState(0); // 速度（m/s）
-  const [averageSpeed, setAverageSpeed] = useState(0); // 平均速度（m/s）
-  const [currentDistance, setCurrentDistance] = useState(0); // 距离（m）
-  const [currentCalories, setCurrentCalories] = useState(0); // 能量消耗（kcal）
-  const [currentHeartRate, setCurrentHeartRate] = useState(0); // 心率（bpm）
-  const [detailedData, setDetailedData] = useState<{ time: number; heartRate: number; speed: number }[]>([]); // 详细数据（每秒记录）
 
-  // 力量数据
-  const [leftHandForce, setLeftHandForce] = useState(0); // 左手力（N）
-  const [rightHandForce, setRightHandForce] = useState(0); // 右手力（N）
-  const [leftLegForce, setLeftLegForce] = useState(0); // 左腿力（N）
-  const [rightLegForce, setRightLegForce] = useState(0); // 右腿力（N）
-  
-  // 蓝牙连接状态
-  const [forceDeviceConnected, setForceDeviceConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('未连接'); // 未连接、连接中、已连接
+  // live data
+  const [currentDuration, setCurrentDuration] = useState(0);
+  const [currentSpeed, setCurrentSpeed] = useState(0);
+  const [averageSpeed, setAverageSpeed] = useState(0);
+  const [currentDistance, setCurrentDistance] = useState(0);
+  const [currentCalories, setCurrentCalories] = useState(0);
+  const [currentHeartRate, setCurrentHeartRate] = useState(0);
+  // latest HR kept in a ref so the 1Hz history sampler records a fresh value
+  // without re-creating its interval on every BLE update
+  const currentHeartRateRef = useRef(0);
+  const [detailedData, setDetailedData] = useState<{ time: number; heartRate: number; speed: number }[]>([]);
 
-  // 训练控制状态
-  const [currentParams, setCurrentParams] = useState(paramsState);
-  
-  
-  
-  // 设置动态标题
-  const navigation = useNavigation();
-  useLayoutEffect(() => {
-    navigation.setOptions({title: `动态姿势评估 ${user?.name || userId}`});
-  }, [navigation, userId, user]);
+  // force (real sensor via ForceService)
+  const [leftHandForce, setLeftHandForce] = useState(0);
+  const [rightHandForce, setRightHandForce] = useState(0);
+  const [leftLegForce, setLeftLegForce] = useState(0);
+  const [rightLegForce, setRightLegForce] = useState(0);
 
+  // latest Force-machine leg position (cm) + force (N), sampled once per second
+  // to derive speed/distance/calories. prevSampleLowerPos is the baseline from the
+  // previous tick; null until the first sample after training starts.
+  const lowerPosRef = useRef(0);
+  const lowerForceMagRef = useRef(0);
+  const prevSampleLowerPosRef = useRef<number | null>(null);
+
+  // duration timer
   useEffect(() => {
     let interval: any;
     if (trainingStarted && !isPaused) {
-      interval = setInterval(() => {
-        setCurrentDuration(prev => prev + 1);
-      }, 1000);
+      interval = setInterval(() => setCurrentDuration((p) => p + 1), 1000);
     }
     return () => clearInterval(interval);
   }, [trainingStarted, isPaused]);
 
-  // 每秒记录详细数据（心率和速度）
+  // per-second sampling — derives speed/distance/calories from the real Force-machine
+  // position/force feed (refs below); heart rate comes from the real KYTO feed.
+  // Values stay at 0 until a Force machine is connected and moving.
   useEffect(() => {
     let interval: any;
     if (trainingStarted && !isPaused) {
       interval = setInterval(() => {
-        // 随机生成心率和速度数据（实际项目中应从传感器获取）
-        const heartRate = Math.floor(Math.random() * 30) + 90;
-        const speed = Math.random() * 5 + 2;
-        
-        setCurrentHeartRate(heartRate);
+        const pos = lowerPosRef.current;
+        const prev = prevSampleLowerPosRef.current;
+        prevSampleLowerPosRef.current = pos;
+        // leg-carriage travel since the last sample (cm → m); one sample == 1s, so
+        // distance-per-second is also the speed in m/s.
+        const speed = prev === null ? 0 : Math.abs(pos - prev) * M_PER_CM;
+        // calories from mechanical work (force × distance), adjusted for muscle efficiency
+        const deltaCalories = (lowerForceMagRef.current * speed) / JOULES_PER_KCAL / CALORIE_EFFICIENCY;
         setCurrentSpeed(speed);
-        
-        // 更新平均速度
-        setAverageSpeed(prev => {
-          const totalSpeed = prev * currentDuration + speed;
-          return totalSpeed / (currentDuration + 1);
-        });
-        
-        // 更新距离
-        setCurrentDistance(prev => prev + speed);
-        
-        // 更新能量消耗（简单模拟）
-        setCurrentCalories(prev => prev + Math.random() * 0.5 + 0.5);
-        
-        // 记录详细数据
-        setDetailedData(prev => [...prev, {
-          time: currentDuration + 1,
-          heartRate,
-          speed
-        }]);
+        setAverageSpeed((prevAvg) => (prevAvg * currentDuration + speed) / (currentDuration + 1));
+        setCurrentDistance((d) => d + speed);
+        setCurrentCalories((cal) => cal + deltaCalories);
+        setDetailedData((prevData) => [
+          ...prevData,
+          { time: currentDuration + 1, heartRate: currentHeartRateRef.current, speed },
+        ]);
       }, 1000);
     }
     return () => clearInterval(interval);
   }, [trainingStarted, isPaused, currentDuration]);
 
-  // 运动开始时重置详细数据
   useEffect(() => {
     if (trainingStarted) {
       setDetailedData([]);
+      prevSampleLowerPosRef.current = null; // reset distance baseline
     }
   }, [trainingStarted]);
-  
-  const handleStartTraining = useCallback(() => {
-    setTrainingStarted(true);
+
+  // real force data
+  const handleForceData = useCallback((f: ForceData) => {
+    setLeftHandForce(f.upperLeftForce || 0);
+    setRightHandForce(f.upperRightForce || 0);
+    setLeftLegForce(f.lowerLeftForce || 0);
+    setRightLegForce(f.lowerRightForce || 0);
+    // feed the speed/distance/calories sampler
+    lowerPosRef.current = f.lowerPosition;
+    lowerForceMagRef.current = Math.abs(f.lowerForce);
   }, []);
 
-  const handlePauseResumeTraining = useCallback(() => {
-    // 简单切换暂停状态，具体逻辑现在由StartStopControls组件处理
-    setIsPaused(prev => !prev);
+  // (Re)assert this screen's force callback. The accessory modal connects the Force
+  // machine but registers its own no-op callback, so reclaim the feed when it closes.
+  useEffect(() => {
+    ForceService.setForceCallback(handleForceData);
+  }, [handleForceData, showAccessory]);
+
+  // real heart rate via BLE — connection is managed by BluetoothProvider,
+  // this screen only registers its callback.
+  useEffect(() => {
+    KYTOHeartRateService.setHeartRateCallback((hr) => {
+      currentHeartRateRef.current = hr;
+      setCurrentHeartRate(hr);
+    });
   }, []);
 
-  // 处理暂停状态变化
-  const handlePausedChange = useCallback((isPaused: boolean) => {
-    setIsPaused(isPaused);
-  }, []);
+  // send resistance to machine whenever it changes
+  useEffect(() => {
+    void ForceService.sendResistanceData({
+      upperLeft: leftResistance,
+      lowerLeft: leftResistance,
+      upperRight: rightResistance,
+      lowerRight: rightResistance,
+    });
+  }, [leftResistance, rightResistance]);
 
-  const handleStopTraining = useCallback(async () => {
-    if (userId) {
-      // 计算最大心率和最大速度
-      const maxHeartRate = detailedData.length > 0 
-        ? Math.max(...detailedData.map(item => item.heartRate)) 
+  const handleStop = useCallback(async () => {
+    if (userId && currentDuration > 0) {
+      const maxHeartRate = detailedData.length
+        ? Math.max(...detailedData.map((d) => d.heartRate))
         : currentHeartRate;
-      const maxSpeed = detailedData.length > 0 
-        ? Math.max(...detailedData.map(item => item.speed)) 
+      const maxSpeed = detailedData.length
+        ? Math.max(...detailedData.map((d) => d.speed))
         : currentSpeed;
-      
-      // 创建运动记录对象
-      const exerciseRecord = {
+      const record = {
         id: Date.now().toString(),
         userId,
         date: new Date().toISOString().split('T')[0],
-        type: '自由训练',
+        type: t('freeTraining'),
         duration: currentDuration,
         distance: currentDistance,
         calories: Math.round(currentCalories),
-        averageSpeed: averageSpeed,
-        maxSpeed: maxSpeed,
+        averageSpeed,
+        maxSpeed,
         heartRate: {
-          avg: Math.round(detailedData.length > 0 
-            ? detailedData.reduce((sum, item) => sum + item.heartRate, 0) / detailedData.length 
-            : currentHeartRate),
-          max: maxHeartRate
+          avg: Math.round(
+            detailedData.length
+              ? detailedData.reduce((s, d) => s + d.heartRate, 0) / detailedData.length
+              : currentHeartRate
+          ),
+          max: maxHeartRate,
         },
-        trainingTargets: trainingTargets || {},
-        detailedData: detailedData
+        trainingTargets,
+        detailedData,
       };
-      
-      // 保存运动记录到数据库
-      await DatabaseService.addExerciseRecord(exerciseRecord);
-      console.log('运动记录已保存:', exerciseRecord);
+      await DatabaseService.addExerciseRecord(record);
     }
-    
-    // 结束训练，重置状态
     setTrainingStarted(false);
     setIsPaused(false);
-  }, [userId, currentDuration, currentDistance, currentCalories, averageSpeed, currentHeartRate, trainingTargets, detailedData]);
+    setCurrentDuration(0);
+    setCurrentDistance(0);
+    setCurrentCalories(0);
+    setAverageSpeed(0);
+  }, [userId, currentDuration, currentDistance, currentCalories, averageSpeed, currentHeartRate, currentSpeed, trainingTargets, detailedData, t]);
 
-  const handleUpdateParams = useCallback(() => {
-    setShowControlPanel(false);
-    setCurrentParams(paramsState);
-  }, [paramsState]);
+  const hrColor = hrZoneColor(currentHeartRate, MAX_HR);
+  const hrZone = hrZoneKey(currentHeartRate, MAX_HR);
+  const hrAlert = currentHeartRate > 0 && hrZone === 'max';
 
-  const [isAccessoryModalVisible, setIsAccessoryModalVisible] = useState(false);
-
-  const [selectedMode, setSelectedMode] = useState('有氧');
-
-  ForceService.setForceCallback((forceData) => {
-    // 更新力量数据状态
-    setLeftHandForce(forceData.upperLeftForce || 0);
-    setRightHandForce(forceData.upperRightForce || 0);
-    setLeftLegForce(forceData.lowerLeftForce || 0);
-    setRightLegForce(forceData.lowerRightForce || 0);
-  });
-  
-  // 组件卸载时清理所有资源
-  useEffect(() => {
-    return () => {
-      console.log('FreeTrainingScreen component unmounting, cleaning up all resources...');
-
-      // 停止训练（如果正在进行）
-      if (trainingStarted) {
-        void handleStopTraining();
-      }
-
-      try {
-        // 清理所有蓝牙资源
-        BLEService.clearAllSubscriptions();
-      } catch (error) {
-        console.error('Error during Bluetooth cleanup:', error);
-      }
-    };
-  }, [trainingStarted, handleStopTraining]);
+  const fmtTime = (s: number) =>
+    `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.forceMonitorContainer}>
-        <ForceBar value={leftHandForce} label="左手力" style={styles.forceBarItem} />
-        <ForceBar value={rightHandForce} label="右手力" style={styles.forceBarItem} />
-        <ForceBar value={leftLegForce} label="左腿力" style={styles.forceBarItem} />
-        <ForceBar value={rightLegForce} label="右腿力" style={styles.forceBarItem} />
-      </ThemedView>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Header
+        title={t('freeTraining')}
+        right={<ConnectionChip status={trainingStarted ? 'connected' : 'disconnected'} />}
+      />
 
-      {/* 心率 */}
-      <TouchableOpacity
-        style={styles.heartRateWrapper}
-        onPress={() => setIsAccessoryModalVisible(true)}
-      >
-        <HeartRate
-          maxHeartRate={150}
-          targetHeartRateRange={[100, 130]}
+      {/* patient row */}
+      <View style={styles.patientRow}>
+        <Avatar name={user?.name} size={40} />
+        <View style={{ flex: 1 }}>
+          <Txt variant="subtitle">{user?.name ?? t('noPatient')}</Txt>
+          {user ? (
+            <Txt variant="caption" color={c.textSecondary}>
+              {user.gender} · {user.age}{t('years')} · {user.height}cm · {user.weight}kg
+            </Txt>
+          ) : null}
+        </View>
+      </View>
+
+      <AlertBanner message={t('hrTooHigh')} visible={hrAlert} />
+
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        {/* primary metrics */}
+        <View style={styles.primaryRow}>
+          <Card style={styles.flex1}>
+            <Txt variant="caption" color={c.textSecondary}>{t('duration')}</Txt>
+            <Metric value={fmtTime(currentDuration)} size="metricMd" />
+            <Txt variant="caption" color={c.textMuted}>{t('target')} {fmtTime(trainingTargets.duration)}</Txt>
+          </Card>
+
+          <Card style={[styles.flex125, { borderColor: c.warning, borderWidth: 1.5 }]}>
+            <View style={styles.cardTopRow}>
+              <Txt variant="caption" color={c.textSecondary}>{t('heartRate')}</Txt>
+              <View style={[styles.zonePill, { backgroundColor: c.warningSoft }]}>
+                <Txt variant="caption" color={c.warning}>{t(`zone_${hrZone}` as StringKey)}</Txt>
+              </View>
+            </View>
+            <Metric value={currentHeartRate || '--'} size="metricMd" color={hrColor} />
+            <View style={{ marginVertical: 6 }}>
+              <HrZoneRamp activeKey={hrZone} />
+            </View>
+            <Txt variant="caption" color={c.textMuted}>
+              {t('target')} {TARGET_HR[0]}–{TARGET_HR[1]} · {t('max')} {MAX_HR}
+            </Txt>
+          </Card>
+
+          <Card style={styles.flex1}>
+            <Txt variant="caption" color={c.textSecondary}>{t('distance')}</Txt>
+            <Metric value={`${Math.round(currentDistance)}`} size="metricMd" />
+            <Txt variant="caption" color={c.textMuted}>m · {t('target')} {trainingTargets.distance}m</Txt>
+            <View style={{ marginTop: 6 }}>
+              <ProgressBar
+                value={trainingTargets.distance ? currentDistance / trainingTargets.distance : 0}
+                color={c.success}
+              />
+            </View>
+          </Card>
+        </View>
+
+        {/* secondary metrics */}
+        <View style={styles.secondaryRow}>
+          <Card style={styles.flex1}>
+            <View style={styles.cardTopRow}>
+              <Txt variant="caption" color={c.textSecondary}>{t('calories')}</Txt>
+              <Metric value={Math.round(currentCalories)} size="metricSm" />
+            </View>
+            <Txt variant="caption" color={c.textMuted}>kcal · {t('target')} {trainingTargets.calories}</Txt>
+          </Card>
+          <Card style={styles.flex1}>
+            <View style={styles.cardTopRow}>
+              <Txt variant="caption" color={c.textSecondary}>{t('speed')}</Txt>
+              <Metric value={currentSpeed.toFixed(2)} size="metricSm" />
+            </View>
+            <Txt variant="caption" color={c.textMuted}>m/s · {t('avg')} {averageSpeed.toFixed(2)}</Txt>
+          </Card>
+        </View>
+
+        {/* force — anatomical 2x2 */}
+        <Card style={{ gap: Tokens.space.md }}>
+          <Txt variant="label" color={c.textSecondary}>{t('forceUnit')}</Txt>
+          <View style={styles.forceGrid}>
+            <View style={styles.forceCol}><ForceTile label={t('leftHand')} value={leftHandForce} /></View>
+            <View style={styles.forceCol}><ForceTile label={t('rightHand')} value={rightHandForce} /></View>
+          </View>
+          <View style={styles.forceGrid}>
+            <View style={styles.forceCol}><ForceTile label={t('leftLeg')} value={leftLegForce} /></View>
+            <View style={styles.forceCol}><ForceTile label={t('rightLeg')} value={rightLegForce} /></View>
+          </View>
+        </Card>
+
+        {/* posture (live Wit Motion) */}
+        <PostureCard />
+
+        {/* resistance */}
+        <View style={styles.secondaryRow}>
+          <View style={styles.flex1}>
+            <Stepper label={t('leftResistance')} value={leftResistance} min={0} max={10} onChange={setLeftResistance} />
+          </View>
+          <View style={styles.flex1}>
+            <Stepper label={t('rightResistance')} value={rightResistance} min={0} max={10} onChange={setRightResistance} />
+          </View>
+        </View>
+
+        <AppButton
+          label={t('setTargets')}
+          variant="secondary"
+          icon="options-outline"
+          onPress={() => setShowTargetModal(true)}
         />
-      </TouchableOpacity>
+        <AppButton
+          label={t('bluetoothDevices')}
+          variant="secondary"
+          icon="bluetooth-outline"
+          onPress={() => setShowAccessory(true)}
+        />
+      </ScrollView>
 
-      {/* 运动时长（秒） */}
-      <ExerciseDuration
-        style={styles.duration}
-        duration={currentDuration}
-        targetDuration={trainingTargets!.duration || 0}
-        onTargetPress={() => setShowTargetModal(true)}
-      />
+      {/* control bar */}
+      <View style={[styles.controlBar, { backgroundColor: c.surface, borderTopColor: c.border }]}>
+        {!trainingStarted ? (
+          <AppButton label={t('start')} icon="play" full onPress={() => setTrainingStarted(true)} />
+        ) : (
+          <>
+            <AppButton
+              label={isPaused ? t('resume') : t('pause')}
+              variant="warningOutline"
+              icon={isPaused ? 'play' : 'pause'}
+              full
+              onPress={() => setIsPaused((p) => !p)}
+            />
+            <AppButton label={t('end')} variant="danger" icon="stop" full onPress={handleStop} />
+          </>
+        )}
+      </View>
 
-      {/* 能量消耗 */}
-      <Calories
-        style={styles.calories}
-        calories={currentCalories}
-        targetCalories={trainingTargets!.calories || 0}
-        onTargetPress={() => setShowTargetModal(true)}
-      />
-
-      {/* 速度 */}
-      <Speed
-        style={styles.speed}
-        speed={currentSpeed}
-        averageSpeed={averageSpeed}
-      />
-
-      {/* 攀爬距离 */}
-      <Distance
-        style={styles.distance}
-        distance={currentDistance}
-        targetDistance={trainingTargets!.distance || 0}
-        onTargetPress={() => setShowTargetModal(true)}
-      />
-
-
-
-      {/* 体姿态 */}
-      <TouchableOpacity
-        style={styles.posture}
-        onPress={() => setIsAccessoryModalVisible(true)}
-      >
-        <Posture />
-      </TouchableOpacity>
-
-      {/* 阻力控制 */}
-      <ResistanceControl
-        style={styles.resistanceControlLeft}
-        title="左侧阻力"
-        initialValue={leftResistance}
-        onValueChange={setLeftResistance}
-        isLeft
-        resistanceType="upperLeft"
-      />
-      <ResistanceControl
-        style={styles.resistanceControlRight}
-        title="右侧阻力"
-        initialValue={rightResistance}
-        onValueChange={setRightResistance}
-        isRight
-        resistanceType="upperRight"
-      />
-
-      {/* 训练控制 */}
-      <StartStopControls
-        isExerciseStarted={trainingStarted}
-        isPaused={isPaused}
-        onStart={handleStartTraining}
-        onPauseResume={handlePauseResumeTraining}
-        onEnd={handleStopTraining}
-        onPausedChange={handlePausedChange}
-      />
-
-      {/* 设备列表模态框已移除 */}
-
-      {/* 目标设置弹窗 */}
       <TargetSettingModal
         visible={showTargetModal}
         initialTargets={trainingTargets}
         onClose={(targets) => {
           setShowTargetModal(false);
-          if (targets) {
-            setTrainingTargets(targets);
-            // 这里可以处理目标设置后的逻辑，比如发送到设备
-            console.log('设置的目标:', targets);
-          }
+          if (targets) setTrainingTargets(targets);
         }}
       />
-
-      {/* 参数控制面板 */}
-      <Modal 
-        visible={showControlPanel} 
-        animationType="slide" 
-        transparent={true}
-        onRequestClose={() => setShowControlPanel(false)}
-      >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
-            <ThemedText type="subtitle" style={styles.modalTitle}>调整训练参数</ThemedText>
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>阻力级别 (1-10):</ThemedText>
-              <ThemedView style={styles.sliderContainer}>
-                <TouchableOpacity 
-                  style={styles.sliderButton}
-                  // onPress={() => setParams(prev => ({...prev, resistanceLevel: Math.max(1, prev.resistanceLevel - 1)}))}
-                >
-                  <Ionicons name="remove" size={20} color={tintColor} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  // onPress={() => setParams(prev => ({...prev, resistanceLevel: Math.min(10, prev.resistanceLevel + 1)}))}
-                >
-                  <Ionicons name="add" size={20} color={tintColor} />
-                </TouchableOpacity>
-              </ThemedView>
-            </ThemedView>
-            <ThemedView style={styles.inputGroup}>
-              <ThemedText>速度 (1-10):</ThemedText>
-              <ThemedView style={styles.sliderContainer}>
-                <TouchableOpacity 
-                  style={styles.sliderButton}
-                  // onPress={() => setParams(prev => ({...prev, speed: Math.max(1, prev.speed - 1)}))}
-                >
-                  <Ionicons name="remove" size={20} color={tintColor} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  // onPress={() => setParams(prev => ({...prev, speed: Math.min(10, prev.speed + 1)}))}
-                >
-                  <Ionicons name="add" size={20} color={tintColor} />
-                </TouchableOpacity>
-              </ThemedView>
-            </ThemedView>
-            <ThemedView style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalButton} 
-                onPress={() => setShowControlPanel(false)}
-              >
-                <ThemedText>取消</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.modalButtonPrimary]} 
-                onPress={handleUpdateParams}
-              >
-                <ThemedText style={styles.modalButtonPrimaryText}>确定</ThemedText>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
-        </ThemedView>
-      </Modal>
-
-      {/* 连接配件弹窗 */}
       <AccessoryModal
-        visible={isAccessoryModalVisible}
-        onClose={() => setIsAccessoryModalVisible(false)}
-        onModeSelect={(mode) => {
-          setSelectedMode(mode);
-        }}
+        visible={showAccessory}
+        onClose={() => setShowAccessory(false)}
+        onModeSelect={setSelectedMode}
         selectedMode={selectedMode}
       />
-    </ThemedView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  statusContainer: {
+  patientRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 20,
+    gap: Tokens.space.md,
+    paddingHorizontal: Tokens.space.base,
+    paddingVertical: Tokens.space.md,
   },
-  connectedStatus: {
-    backgroundColor: '#4CAF50',
-  },
-  connectingStatus: {
-    backgroundColor: '#2196F3',
-  },
-  disconnectedStatus: {
-    backgroundColor: '#9E9E9E',
-  },
-  statusText: {
-    color: 'white',
-    marginLeft: 5,
-    flex: 1,
-  },
-  connectButton: {
-    marginLeft: 10,
-    padding: 5,
-  },
-  disconnectButton: {
-    marginLeft: 10,
-    padding: 5,
-  },
-  controlSection: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  targetSection: {
-    backgroundColor: '#f0f0f0',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-  },
-  targetGrid: {
+  body: { padding: Tokens.space.base, gap: Tokens.space.md, paddingBottom: Tokens.space.xl },
+  primaryRow: { flexDirection: 'row', gap: Tokens.space.md },
+  secondaryRow: { flexDirection: 'row', gap: Tokens.space.md },
+  flex1: { flex: 1 },
+  flex125: { flex: 1.25 },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  zonePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.pill },
+  forceGrid: { flexDirection: 'row', gap: Tokens.space.md },
+  forceCol: { flex: 1 },
+  controlBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  targetCard: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    width: '31%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  targetValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginVertical: 5,
-  },
-  targetLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  controlButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-    borderRadius: 10,
-    minWidth: 100,
-  },
-  startButton: {
-    backgroundColor: '#FF6B35', // 橙色，匹配设计图
-    minWidth: 250,
-    height: 60,
-    justifyContent: 'center',
-    borderRadius: 30,
-    alignSelf: 'center',
-    marginTop: 20,
-  },
-  pauseButton: {
-    backgroundColor: '#FFC107',
-  },
-  stopButton: {
-    backgroundColor: '#F44336',
-    marginLeft: 10,
-  },
-  controlButtonText: {
-    color: 'white',
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  trainingControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  paramButton: {
-    marginLeft: 10,
-    padding: 15,
-  },
-  dataSection: {
-    backgroundColor: '#f0f0f0',
-    padding: 15,
-    borderRadius: 10,
-  },
-  dataGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  dataCard: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    width: '48%',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  dataValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginVertical: 5,
-  },
-  dataLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  chartContainer: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  chartTitle: {
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  chartPlaceholder: {
-    width: '100%',
-    height: 150,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 5,
-  },
-  doubleItemContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  resistanceSection: {
-    marginTop: 20,
-  },
-  resistanceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#F8E7E1', // 浅粉色背景，匹配设计图
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 10,
-  },
-  resistanceLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  resistanceControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  resistanceButton: {
-    backgroundColor: '#FF6B35', // 橙色按钮，匹配设计图
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 10,
-  },
-  resistanceValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FF6B35', // 橙色文字，匹配设计图
-    marginHorizontal: 10,
-  },
-  twoColumnLayout: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  leftColumn: {
-    width: '20%',
-  },
-  middleColumn: {
-    width: '20%',
-    alignItems: 'center',
-  },
-  rightColumn: {
-    width: '20%',
-  },
-  rightmostColumn: {
-    width: '20%',
-  },
-  topDataRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  timeCircleContainer: {
-    alignItems: 'center',
-  },
-  timeText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  timeLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  resistanceControlLeft: {
-    position: 'absolute',
-    bottom: 200,
-    left: 0,
-    width: '30%',
-  },
-  resistanceControlRight: {
-    position: 'absolute',
-    bottom: 200,
-    right: 0,
-    width: '30%',
-  },
-  noDevicesText: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    width: '80%',
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  deviceList: {
-    maxHeight: 300,
-    marginBottom: 20,
-  },
-  deviceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  deviceInfo: {
-    marginLeft: 10,
-    flex: 1,
-  },
-  deviceName: {
-    fontWeight: '600',
-  },
-  deviceId: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  closeButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontWeight: '600',
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  sliderContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  sliderButton: {
-    padding: 10,
-  },
-  sliderValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginHorizontal: 20,
-    minWidth: 50,
-    textAlign: 'center',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
-  modalButton: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
-  modalButtonPrimary: {
-    backgroundColor: '#2196F3',
-  },
-  modalButtonPrimaryText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  distance:  {
-    position: 'absolute',
-    top: 180,
-    right: 0,
-    width: '20%'
-  },
-  heartRateWrapper: {
-    position: 'absolute',
-    top: 380,
-    right: 0,
-    width: '20%',
-  },
-  posture: {
-    position: 'absolute',
-    top: 580,
-    right: 0,
-    width: '24%'
-  },
-  duration: {
-    position: 'absolute',
-    top: 180,
-    left: 0,
-    width: '20%'
-  },
-  speed: {
-    position: 'absolute',
-    top: 380,
-    left: 0,
-    width: '20%'
-  },
-  calories: {
-    position: 'absolute',
-    top: 580,
-    left: 0,
-    width: '20%'
-  },
-  forceMonitorContainer: {
-    display: 'flex',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    height: '100%',
-    paddingHorizontal: 240,
-    paddingVertical: 40,
-  },
-  forceBarItem: {
-    marginHorizontal: 40,
-    marginVertical: 20,
+    gap: Tokens.space.md,
+    padding: Tokens.space.base,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

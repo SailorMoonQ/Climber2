@@ -1,74 +1,62 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
+import { useTokens } from '@/hooks/use-tokens';
+import { useI18n } from '@/i18n';
+import { Tokens } from '@/constants/theme';
+import { Metric, ProgressBar, Txt } from '@/components/ui/primitives';
 
 export default function SplashScreen() {
-  // const navigation = useNavigation();
-  // navigation.setOptions({
-  //   headerTransparent: true,
-  //   headerStyle: {
-  //     borderBottom: 0
-  //   }
-  // });
+  const { c } = useTokens();
+  const { t } = useI18n();
 
   useEffect(() => {
-    // 开屏界面显示时间（毫秒）
-    const splashDuration = 2000;
-
-    // 设置定时器，延迟后跳转到主界面
-    const timer = setTimeout(() => {
-      router.replace('/(tabs)');
-    }, splashDuration);
-
-    // 清理定时器
+    const timer = setTimeout(() => router.replace('/(tabs)'), 2000);
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.logo}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.glow, { backgroundColor: c.primarySoft }]} />
+      <View style={[styles.logo, { backgroundColor: c.primary }]}>
         <Image
           source={require('@/assets/images/logo.png')}
-          style={{width: '100%', height: '100%'}}
-          contentFit="contain" />
-      </ThemedView>
-      <ThemedText type="title" style={styles.title}>攀爬康复仪</ThemedText>
-      <ThemedText style={styles.subtitle}>
-        发布版本: V1.0
-      </ThemedText>
-      <ThemedText style={styles.subtitle}>
-        完整版本: V1.0.0
-      </ThemedText>
-    </ThemedView>
+          style={styles.logoImg}
+          contentFit="contain"
+        />
+      </View>
+      <Txt variant="display" style={styles.title}>{t('appName')}</Txt>
+      <Txt variant="body" color={c.textSecondary}>Climber Rehab</Txt>
+
+      <View style={styles.bottom}>
+        <ProgressBar value={0.6} height={4} />
+        <Metric value="V 1.0.0" size="metricSm" color={c.textMuted} style={styles.version} />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Tokens.space.xl },
+  glow: {
+    position: 'absolute',
+    top: '18%',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    opacity: 0.5,
   },
   logo: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    width: 360,
-    height: 100,
+    width: 96,
+    height: 96,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Tokens.space.lg,
   },
-  title: {
-    fontSize: 80,
-    height: 240,
-    marginTop: 20,
-    padding: 20,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    fontSize: 18,
-    opacity: 0.7,
-  },
+  logoImg: { width: 64, height: 64 },
+  title: { marginBottom: Tokens.space.xs },
+  bottom: { position: 'absolute', bottom: 56, alignItems: 'center', width: 160 },
+  version: { fontSize: 13, marginTop: Tokens.space.md },
 });

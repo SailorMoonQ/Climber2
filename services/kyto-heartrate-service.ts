@@ -17,6 +17,11 @@ class KYTOHeartRateServiceInstance {
     console.log('KYTO Heart Rate Service initialized successfully');
   }
 
+  // 注册心率回调（连接由BluetoothProvider统一管理，界面只负责注册回调）
+  setHeartRateCallback = (callback: (heartRate: number) => void) => {
+    this.heartRateCallback = callback;
+  };
+
   // 解析心率数据
   parseHeartRateData = (value: string): HeartRateData | null => {
     try {
@@ -49,7 +54,9 @@ class KYTOHeartRateServiceInstance {
       // 解析心率值
       console.log(hexString);
 
-      heartRate = parseInt(hexString.substring(4, 6), 16);
+      // 标准心率测量(2A37): 第0字节为Flags, 第1字节为8位心率值。
+      // (此前误取第2字节，实为RR间期数据)
+      heartRate = parseInt(hexString.substring(2, 4), 16);
 
       console.log('KYTO Heart Rate:', heartRate);
 
@@ -177,7 +184,7 @@ class KYTOHeartRateServiceInstance {
         // 使用BLEService的断开方法，确保统一的资源管理
         await BLEService.disconnectFromDevice(this.connectedDevice.id);
         this.connectedDevice = null;
-        this.heartRateCallback = null;
+        // keep heartRateCallback so a reconnect resumes data without a screen remount
         console.log('Disconnected from KYTO heart rate device');
       }
     } catch (error) {

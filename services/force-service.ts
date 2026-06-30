@@ -81,23 +81,31 @@ class ForceServiceInstance {
   // 处理接收到的原始数据并转换为ForceData
   private handleRawData = (rawData: string) => {
     try {
+      // 通知出错时 BLEService 会回调一个错误对象而非base64字符串，直接忽略
+      if (typeof rawData !== 'string') {
+        return;
+      }
       // 解析base64编码的二进制数据
       const buffer = Buffer.from(rawData, 'base64');
 
-      // 验证数据长度是否为6字节
-      if (buffer.length !== 6) {
+      // 实际设备发送6字节纯数据(位置×2 + 力×4)；协议文档另描述带帧头的9字节格式
+      // (0xAA 0xBB + 6字节数据 + 0x55)。两种都支持，data offset 相应为 0 或 2。
+      let offset: number;
+      if (buffer.length === 6) {
+        offset = 0;
+      } else if (buffer.length === 9 && buffer[0] === 0xAA && buffer[8] === 0x55) {
+        offset = 2;
+      } else {
         console.error('Invalid force data length:', buffer.length);
         return;
       }
 
-      // console.log(buffer[3], buffer[2]);
-
       // 提取原始数据（小端格式）
       const forceData: Omit<ForceData, 'timestamp'> = {
-        upperPosition: buffer.readUInt8(0), // Byte0: 上肢实时位置 cm
-        lowerPosition: buffer.readUInt8(1), // Byte1: 下肢实时位置 cm
-        upperForce: (((buffer[3] << 8) | buffer[2]) & 0xFFFF) > 0x7FFF ? ((buffer[3] << 8) | buffer[2]) - 0x10000 : (buffer[3] << 8) | buffer[2], // Byte2-3: 上肢实时力 N (小端格式，Byte2是低位字节，Byte3是高位字节)
-        lowerForce: (((buffer[5] << 8) | buffer[4]) & 0xFFFF) > 0x7FFF ? ((buffer[5] << 8) | buffer[4]) - 0x10000 : (buffer[5] << 8) | buffer[4], // Byte4-5: 下肢实时力 N (小端格式，Byte4是低位字节，Byte5是高位字节)
+        upperPosition: buffer.readUInt8(offset + 0), // Byte2: 上肢实时位置 cm
+        lowerPosition: buffer.readUInt8(offset + 1), // Byte3: 下肢实时位置 cm
+        upperForce: (((buffer[offset + 3] << 8) | buffer[offset + 2]) & 0xFFFF) > 0x7FFF ? ((buffer[offset + 3] << 8) | buffer[offset + 2]) - 0x10000 : (buffer[offset + 3] << 8) | buffer[offset + 2], // Byte4-5: 上肢实时力 N (小端格式)
+        lowerForce: (((buffer[offset + 5] << 8) | buffer[offset + 4]) & 0xFFFF) > 0x7FFF ? ((buffer[offset + 5] << 8) | buffer[offset + 4]) - 0x10000 : (buffer[offset + 5] << 8) | buffer[offset + 4], // Byte6-7: 下肢实时力 N (小端格式)
       };
 
       // 计算左右侧位置
@@ -136,32 +144,13 @@ class ForceServiceInstance {
 
       console.log('Starting force notifications...');
 
-      // 使用BLEService的通用通知方法
+      // 使用BLEService的通用通知方法（单一订阅，避免重复监听与重复错误）
       BLEService.startNotifications(
         this.connectedDevice,
         FORCE_SERVICE_UUID,
         FORCE_NOTIFY_CHARACTERISTIC_UUID,
         this.handleRawData
       );
-
-      this.connectedDevice.monitorCharacteristicForService(
-        FORCE_SERVICE_UUID,
-        FORCE_NOTIFY_CHARACTERISTIC_UUID,
-        (error, characteristic) => {
-          if (error) {
-            console.error('Error monitoring characteristic:', error);
-            return;
-          }
-
-          if (!characteristic || !characteristic.value) {
-            console.debug('Error monitoring characteristic: Characteristic not found or no value');
-            return;
-          }
-
-          this.handleRawData(characteristic.value);
-        }
-      )
-
     } catch (error) {
       console.error('Failed to start force notifications:', error);
     }
@@ -226,9 +215,10 @@ class ForceServiceInstance {
       console.log('Starting Force device scan...');
       this.scanning = true;
 
-      // 使用BLEService的扫描功能
+      // 扫描所有设备并按名称匹配（FORCE_DEVICE_UUID 是设备标识，非广播的服务UUID，
+      // 用作扫描过滤会导致匹配不到设备）
       await bleManager.startDeviceScan(
-        [FORCE_DEVICE_UUID],
+        null,
         null,
         async (error, scannedDevice) => {
           if (error) {
@@ -258,11 +248,10 @@ class ForceServiceInstance {
     try {
       this.scanning = false;
       if (this.connectedDevice) {
-        // 使用BLEService的断开方法
-        // await BLEService.disconnectFromDevice(this.connectedDevice.id);
-        this.connectedDevice.cancelConnection();
+        // 通过BLEService统一断开：清理连接表+通知订阅，确保之后能干净重连。
+        // 不清空 forceCallback —— 重连后界面已注册的回调仍有效，数据可恢复。
+        await BLEService.disconnectFromDevice(this.connectedDevice.id);
         this.connectedDevice = null;
-        this.forceCallback = null;
         console.log('Disconnected from Force device');
       } else {
         bleManager.stopDeviceScan();
@@ -276,7 +265,8 @@ class ForceServiceInstance {
   sendResistanceData = async (resistanceData: ResistanceData): Promise<boolean> => {
     try {
       if (!this.connectedDevice) {
-        console.error('Cannot send resistance data: No connected device');
+        // Expected when no Force machine is paired yet — keep it quiet, not an error.
+        console.debug('Skip sending resistance data: no connected device');
         return false;
       }
 

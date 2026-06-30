@@ -193,7 +193,7 @@ class DatabaseService {
       const id = Date.now().toString(); // 使用时间戳生成唯一ID
       await db.runAsync(
         'INSERT INTO users (id, name, age, gender, height, weight, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [id, userData.name, userData.age, userData.gender, userData.height, userData.weight, userData.avatar]
+        [id, userData.name, userData.age, userData.gender, userData.height, userData.weight, userData.avatar ?? null]
       );
       return { id, ...userData };
     } catch (error) {
@@ -210,7 +210,7 @@ class DatabaseService {
       }
       await db.runAsync(
         'UPDATE users SET name = ?, age = ?, gender = ?, height = ?, weight = ?, avatar = ? WHERE id = ?',
-        [user.name, user.age, user.gender, user.height, user.weight, user.avatar, user.id]
+        [user.name, user.age, user.gender, user.height, user.weight, user.avatar ?? null, user.id]
       );
       return true;
     } catch (error) {

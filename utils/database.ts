@@ -64,10 +64,68 @@ export const initDatabase = async () => {
       });
     }
     
+    // 创建通用应用设置表（键值对，用于语言等偏好）
+    await retryWithBackoff(async () => {
+      return await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT
+        );
+      `);
+    });
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;
+  }
+};
+
+// 确保 app_settings 表已存在（懒初始化，避免设置读写早于 initDatabase 的竞态）
+let appSettingsReady: Promise<void> | null = null;
+const ensureAppSettingsTable = (): Promise<void> => {
+  if (!appSettingsReady) {
+    appSettingsReady = retryWithBackoff(async () => {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT
+        );
+      `);
+    });
+  }
+  return appSettingsReady;
+};
+
+// 通用设置：保存键值
+export const saveSetting = async (key: string, value: string): Promise<void> => {
+  try {
+    await ensureAppSettingsTable();
+    await retryWithBackoff(async () => {
+      return await db.runAsync(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        [key, value]
+      );
+    });
+  } catch (error) {
+    console.error('Error saving setting:', key, error);
+  }
+};
+
+// 通用设置：读取键值
+export const getSetting = async (key: string): Promise<string | null> => {
+  try {
+    await ensureAppSettingsTable();
+    const result = await retryWithBackoff(async () => {
+      return await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_settings WHERE key = ?',
+        [key]
+      );
+    });
+    return result?.value ?? null;
+  } catch (error) {
+    console.error('Error getting setting:', key, error);
+    return null;
   }
 };
 

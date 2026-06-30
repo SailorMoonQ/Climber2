@@ -109,7 +109,7 @@ class WitMotionServiceInstance {
         // 使用BLEService的断开方法
         await BLEService.disconnectFromDevice(this.connectedDevice.id);
         this.connectedDevice = null;
-        this.poseCallback = null;
+        // keep poseCallback so a reconnect resumes data without a screen remount
         console.log('Disconnected from Wit Motion device');
       }
     } catch (error) {

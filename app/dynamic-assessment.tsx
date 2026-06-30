@@ -1,41 +1,61 @@
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useState } from 'react';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+
+import {
+  AppButton,
+  Avatar,
+  BottomSheet,
+  Card,
+  Header,
+  SegmentedControl,
+  Txt,
+} from '@/components/ui/primitives';
+import { useTokens } from '@/hooks/use-tokens';
+import { Tokens } from '@/constants/theme';
+import { useI18n } from '@/i18n';
+
 import DatabaseService from '@/services/database-service';
-import { useNavigation, useRouter } from "expo-router";
-import { User } from "@/interface/user.interface";
+import { User } from '@/interface/user.interface';
 import { useUser } from '@/contexts/UserContext';
 
-export default function DynamicAssessmentScreen() {
-  const navigation = useNavigation();
-  navigation.setOptions({
-    title: '动态评估'
-  });
+const EMPTY_FORM = {
+  id: '',
+  name: '',
+  gender: '男' as string,
+  age: 30,
+  height: 170,
+  weight: 65.0,
+};
 
-  const colorScheme = useColorScheme();
-  const tintColor = Colors[colorScheme ?? 'light'].tint;
+export default function DynamicAssessmentScreen() {
+  const { c } = useTokens();
+  const { t } = useI18n();
   const { setSelectedUser, setCurrentUser } = useUser();
+  const router = useRouter();
+
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const router = useRouter();
+  const [selectedPatient, setSelectedPatient] = useState<User | null>(null);
 
-  // 新用户表单状态
-  const [newUser, setNewUser] = useState({
-    id: '',
-    name: '',
-    gender: '男',
-    age: 30,
-    height: 170,
-    weight: 65.0
-  });
+  // sheet state
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
 
-  // 加载用户数据的函数
+  // ---------------------------------------------------------------- data load
   const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -50,69 +70,146 @@ export default function DynamicAssessmentScreen() {
     }
   }, []);
 
-  // 初始化加载用户数据
-  useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadUsers();
+    }, [loadUsers])
+  );
 
-  // 搜索功能
+  // ---------------------------------------------------------------- search filter
   useEffect(() => {
     if (searchQuery === '') {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(user =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.id.includes(searchQuery) ||
-        user.age.toString().includes(searchQuery)
+      const q = searchQuery.toLowerCase();
+      setFilteredUsers(
+        users.filter(
+          (u) =>
+            u.name.toLowerCase().includes(q) ||
+            u.id.includes(searchQuery) ||
+            u.age.toString().includes(searchQuery)
+        )
       );
-      setFilteredUsers(filtered);
     }
   }, [searchQuery, users]);
 
-  // 选择用户
-  const handleUserSelect = useCallback((user: User) => {
-    setSelectedUser(user);
-    setCurrentUser(user);
-    // 填充表单
-    setNewUser({
+  // ---------------------------------------------------------------- helpers
+  const updateForm = (field: keyof typeof form, value: string | number) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
+
+  const openAddSheet = () => {
+    setEditingUser(null);
+    setForm({ ...EMPTY_FORM });
+    setSheetVisible(true);
+  };
+
+  const openEditSheet = (user: User) => {
+    setEditingUser(user);
+    setForm({
       id: user.id,
       name: user.name,
       gender: user.gender,
       age: user.age,
       height: user.height,
-      weight: user.weight
+      weight: user.weight,
     });
-  }, [setSelectedUser, setCurrentUser]);
-
-  // 更新新用户表单字段
-  const updateNewUserField = (field: keyof typeof newUser, value: any) => {
-    setNewUser(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setSheetVisible(true);
   };
 
-  // 进入评估页面
-  const enterAssessment = async () => {
+  // ---------------------------------------------------------------- select patient
+  const handleUserSelect = useCallback(
+    (user: User) => {
+      setSelectedPatient(user);
+      setSelectedUser(user);
+      setCurrentUser(user);
+    },
+    [setSelectedUser, setCurrentUser]
+  );
+
+  // ---------------------------------------------------------------- save user
+  const handleSaveUser = async () => {
     try {
-      // 如果是新用户，保存到数据库
-      let userToUse = { ...newUser };
-      
-      if (!newUser.id.trim()) {
-        // 生成唯一ID
-        const newId = 'A' + Math.floor(10000 + Math.random() * 90000);
-        userToUse.id = newId;
+      await DatabaseService.init();
+      let userToSave: User;
+
+      if (editingUser) {
+        userToSave = {
+          id: editingUser.id,
+          name: form.name,
+          gender: form.gender,
+          age: form.age,
+          height: form.height,
+          weight: form.weight,
+        };
+        await DatabaseService.updateUser(userToSave);
+      } else {
+        const newId = form.id.trim() || 'A' + Math.floor(10000 + Math.random() * 90000);
+        userToSave = {
+          id: newId,
+          name: form.name,
+          gender: form.gender,
+          age: form.age,
+          height: form.height,
+          weight: form.weight,
+        };
+        await DatabaseService.addUser(userToSave);
       }
 
-      // 保存用户
-      await DatabaseService.init();
-      await DatabaseService.addUser(userToUse);
-      
-      // 设置当前用户
+      setSheetVisible(false);
+      await loadUsers();
+    } catch (error) {
+      console.error('Failed to save user:', error);
+    }
+  };
+
+  // ---------------------------------------------------------------- delete user
+  const handleDeleteUser = (user: User) => {
+    Alert.alert(t('delete'), t('deleteUserConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await DatabaseService.init();
+            await DatabaseService.deleteUser(user.id);
+            if (selectedPatient?.id === user.id) {
+              setSelectedPatient(null);
+              setSelectedUser(null);
+              setCurrentUser(null);
+            }
+            await loadUsers();
+          } catch (error) {
+            console.error('Failed to delete user:', error);
+          }
+        },
+      },
+    ]);
+  };
+
+  // ---------------------------------------------------------------- start assessment
+  const enterAssessment = async () => {
+    try {
+      let userToUse: User;
+
+      if (selectedPatient) {
+        userToUse = selectedPatient;
+      } else {
+        await DatabaseService.init();
+        const newId = 'A' + Math.floor(10000 + Math.random() * 90000);
+        userToUse = {
+          id: newId,
+          name: form.name || '临时用户',
+          gender: form.gender,
+          age: form.age,
+          height: form.height,
+          weight: form.weight,
+        };
+        await DatabaseService.addUser(userToUse);
+      }
+
       setSelectedUser(userToUse);
       setCurrentUser(userToUse);
-      
-      // 导航到评估页面
       // @ts-ignore
       router.push('/exercise?id=' + userToUse.id);
     } catch (error) {
@@ -120,314 +217,282 @@ export default function DynamicAssessmentScreen() {
     }
   };
 
-  // 快速开始
-  const quickStart = async () => {
-    // 使用默认用户信息快速进入评估
-    try {
-      // 生成临时用户ID
-      const tempId = 'TEMP' + Date.now().toString().slice(-5);
-      const tempUser: User = {
-        id: tempId,
-        name: '临时用户',
-        gender: newUser.gender,
-        age: newUser.age,
-        height: newUser.height,
-        weight: newUser.weight
-      };
-      
-      // 设置当前用户
-      setSelectedUser(tempUser);
-      setCurrentUser(tempUser);
-      
-      // 导航到评估页面
-      // @ts-ignore
-      router.push('/exercise?id=' + tempUser.id);
-    } catch (error) {
-      console.error('Failed to quick start:', error);
-    }
+  // ---------------------------------------------------------------- render patient row
+  const renderUserItem = ({ item }: { item: User }) => {
+    const isSelected = selectedPatient?.id === item.id;
+    return (
+      <TouchableOpacity
+        onPress={() => handleUserSelect(item)}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: Tokens.space.md,
+          paddingVertical: Tokens.space.sm,
+          paddingHorizontal: Tokens.space.md,
+          borderRadius: Tokens.radius.md,
+          backgroundColor: isSelected ? c.primarySoft : 'transparent',
+          marginBottom: Tokens.space.xs,
+        }}
+      >
+        <Avatar name={item.name} size={36} filled={isSelected} />
+        <View style={{ flex: 1 }}>
+          <Txt variant="body" color={isSelected ? c.primaryStrong : c.text}>
+            {item.name}
+          </Txt>
+          <Txt variant="caption" color={c.textMuted}>
+            {item.id} · {item.age}{t('years')} · {item.gender}
+          </Txt>
+        </View>
+        <TouchableOpacity
+          onPress={() => openEditSheet(item)}
+          style={{ padding: Tokens.space.xs }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="pencil-outline" size={18} color={c.textMuted} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleDeleteUser(item)}
+          style={{ padding: Tokens.space.xs }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="trash-outline" size={18} color={c.danger} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
   };
 
-  // 渲染用户列表项
-  const renderUserItem = ({ item }: { item: User }) => (
-    <TouchableOpacity
-      style={styles.userItem}
-      onPress={() => handleUserSelect(item)}
-    >
-      <ThemedText style={styles.userId}>{item.id}</ThemedText>
-      <ThemedText style={styles.userName}>{item.name}</ThemedText>
-      <ThemedText style={styles.userGender}>{item.gender}</ThemedText>
-      <ThemedText style={styles.userAge}>{item.age}岁</ThemedText>
-    </TouchableOpacity>
-  );
-
-  if (loading) {
-    return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={tintColor} />
-        <ThemedText style={styles.loadingText}>加载中...</ThemedText>
-      </ThemedView>
-    );
-  }
+  const inputStyle = {
+    backgroundColor: c.surface2,
+    color: c.text,
+    borderColor: c.border,
+    borderWidth: 1,
+    borderRadius: Tokens.radius.md,
+    paddingHorizontal: Tokens.space.md,
+    paddingVertical: Tokens.space.sm,
+    minHeight: 48,
+    fontSize: 16,
+  };
 
   return (
-    <ThemedView style={styles.container}>
-      {/* 顶部搜索栏 */}
-      <ThemedView style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={tintColor} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="输入姓名/ID/年龄搜索"
-          placeholderTextColor={Colors[colorScheme ?? 'light'].text}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </ThemedView>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Header
+        title={t('dynamicAssessment')}
+        right={
+          <TouchableOpacity
+            onPress={openAddSheet}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: Tokens.space.xs,
+              paddingHorizontal: Tokens.space.md,
+              paddingVertical: Tokens.space.sm,
+              backgroundColor: c.primarySoft,
+              borderRadius: Tokens.radius.pill,
+            }}
+          >
+            <Ionicons name="person-add-outline" size={18} color={c.primary} />
+            <Txt variant="caption" color={c.primary}>{t('add')}</Txt>
+          </TouchableOpacity>
+        }
+      />
 
-      {/* 用户列表 */}
-      <ThemedView style={styles.userListContainer}>
-        <FlatList
-          data={filteredUsers}
-          renderItem={renderUserItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.userList}
-        />
-      </ThemedView>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Tokens.space.base, gap: Tokens.space.base, paddingBottom: Tokens.space.xxl }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ---- Patient picker ---- */}
+        <Card>
+          <Txt variant="label" color={c.textSecondary} style={{ marginBottom: Tokens.space.sm }}>
+            {t('selectPatient')}
+          </Txt>
 
-      {/* 新建用户表单 */}
-      <ScrollView style={styles.formContainer}>
-        <ThemedView style={styles.formGroup}>
-          <ThemedText style={styles.formLabel}>ID</ThemedText>
-          <TextInput
-            style={styles.textInput}
-            value={newUser.id}
-            onChangeText={(text) => updateNewUserField('id', text)}
-            placeholder="输入用户ID"
-          />
-        </ThemedView>
-
-        <ThemedView style={styles.formGroup}>
-          <ThemedText style={styles.formLabel}>姓名</ThemedText>
-          <TextInput
-            style={styles.textInput}
-            value={newUser.name}
-            onChangeText={(text) => updateNewUserField('name', text)}
-            placeholder="输入姓名"
-          />
-        </ThemedView>
-
-        <ThemedView style={styles.formGroup}>
-          <ThemedText style={styles.formLabel}>性别</ThemedText>
-          <ThemedView style={styles.genderButtons}>
-            <TouchableOpacity
-              style={[styles.genderButton, newUser.gender === '男' && styles.genderButtonActive]}
-              onPress={() => updateNewUserField('gender', '男')}
-            >
-              <Ionicons name="male" size={24} color={newUser.gender === '男' ? '#fff' : tintColor} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.genderButton, newUser.gender === '女' && styles.genderButtonActive]}
-              onPress={() => updateNewUserField('gender', '女')}
-            >
-              <Ionicons name="female" size={24} color={newUser.gender === '女' ? '#fff' : tintColor} />
-            </TouchableOpacity>
-          </ThemedView>
-        </ThemedView>
-
-        <ThemedView style={styles.formGroup}>
-          <ThemedText style={styles.formLabel}>年龄</ThemedText>
-          <TextInput
-            style={styles.textInput}
-            value={newUser.age.toString()}
-            onChangeText={(text) => updateNewUserField('age', parseInt(text) || 0)}
-            keyboardType="numeric"
-            placeholder="输入年龄"
-          />
-        </ThemedView>
-
-        <ThemedView style={styles.formGroup}>
-          <ThemedText style={styles.formLabel}>身高</ThemedText>
-          <ThemedView style={styles.inputWithUnit}>
+          {/* Search */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: c.surface2,
+              borderRadius: Tokens.radius.md,
+              borderWidth: 1,
+              borderColor: c.border,
+              paddingHorizontal: Tokens.space.md,
+              marginBottom: Tokens.space.sm,
+              minHeight: 44,
+            }}
+          >
+            <Ionicons name="search-outline" size={18} color={c.textMuted} style={{ marginRight: Tokens.space.sm }} />
             <TextInput
-              style={styles.textInput}
-              value={newUser.height.toString()}
-              onChangeText={(text) => updateNewUserField('height', parseFloat(text) || 0)}
-              keyboardType="numeric"
-              placeholder="输入身高"
+              style={{ flex: 1, color: c.text, fontSize: 16, paddingVertical: Tokens.space.sm }}
+              placeholder={t('searchUserPlaceholder')}
+              placeholderTextColor={c.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
-            <ThemedText style={styles.unitText}>cm</ThemedText>
-          </ThemedView>
-        </ThemedView>
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color={c.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-        <ThemedView style={styles.formGroup}>
-          <ThemedText style={styles.formLabel}>体重</ThemedText>
-          <ThemedView style={styles.inputWithUnit}>
-            <TextInput
-              style={styles.textInput}
-              value={newUser.weight.toString()}
-              onChangeText={(text) => updateNewUserField('weight', parseFloat(text) || 0)}
-              keyboardType="numeric"
-              placeholder="输入体重"
+          {/* List */}
+          {loading ? (
+            <View style={{ alignItems: 'center', paddingVertical: Tokens.space.lg }}>
+              <ActivityIndicator color={c.primary} />
+              <Txt variant="caption" color={c.textMuted} style={{ marginTop: Tokens.space.sm }}>
+                {t('loading')}
+              </Txt>
+            </View>
+          ) : filteredUsers.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: Tokens.space.lg }}>
+              <Ionicons name="people-outline" size={36} color={c.textMuted} />
+              <Txt variant="caption" color={c.textMuted} style={{ marginTop: Tokens.space.sm }}>
+                {t('noPatient')}
+              </Txt>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredUsers}
+              renderItem={renderUserItem}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
             />
-            <ThemedText style={styles.unitText}>kg</ThemedText>
-          </ThemedView>
-        </ThemedView>
+          )}
+        </Card>
 
-        {/* 对号按钮 */}
-        <TouchableOpacity
-          style={styles.checkButton}
+        {/* ---- Selected patient summary ---- */}
+        {selectedPatient && (
+          <Card inset>
+            <Txt variant="label" color={c.textSecondary} style={{ marginBottom: Tokens.space.sm }}>
+              {t('currentPatient')}
+            </Txt>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.space.md }}>
+              <Avatar name={selectedPatient.name} size={48} filled />
+              <View style={{ flex: 1, gap: Tokens.space.xs }}>
+                <Txt variant="subtitle" color={c.text}>{selectedPatient.name}</Txt>
+                <Txt variant="caption" color={c.textSecondary}>
+                  {selectedPatient.id} · {selectedPatient.age}{t('years')} · {selectedPatient.gender}
+                </Txt>
+                <Txt variant="caption" color={c.textMuted}>
+                  {selectedPatient.height} cm · {selectedPatient.weight} kg
+                </Txt>
+              </View>
+            </View>
+          </Card>
+        )}
+
+        {/* ---- Start button ---- */}
+        <AppButton
+          label={t('startAssessment')}
+          variant="primary"
+          icon="play-circle-outline"
+          full
           onPress={enterAssessment}
-        >
-          <Ionicons name="checkmark" size={32} color="#fff" />
-        </TouchableOpacity>
-
-        {/* 快速开始按钮 */}
-        <TouchableOpacity
-          style={styles.quickStartButton}
-          onPress={quickStart}
-        >
-          <ThemedText style={styles.quickStartText}>快速开始</ThemedText>
-        </TouchableOpacity>
+        />
       </ScrollView>
-    </ThemedView>
+
+      {/* ---- Add / Edit BottomSheet ---- */}
+      <BottomSheet
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
+        title={editingUser ? t('edit') : t('addUser')}
+      >
+        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 500 }}>
+          <View style={{ gap: Tokens.space.base }}>
+            {/* ID (only for new users) */}
+            {!editingUser && (
+              <View style={{ gap: Tokens.space.sm }}>
+                <Txt variant="label" color={c.textSecondary}>ID</Txt>
+                <TextInput
+                  style={inputStyle}
+                  value={form.id}
+                  onChangeText={(v) => updateForm('id', v)}
+                  placeholder="自动生成"
+                  placeholderTextColor={c.textMuted}
+                />
+              </View>
+            )}
+
+            {/* Name */}
+            <View style={{ gap: Tokens.space.sm }}>
+              <Txt variant="label" color={c.textSecondary}>{t('name')}</Txt>
+              <TextInput
+                style={inputStyle}
+                value={form.name}
+                onChangeText={(v) => updateForm('name', v)}
+                placeholderTextColor={c.textMuted}
+              />
+            </View>
+
+            {/* Gender */}
+            <View style={{ gap: Tokens.space.sm }}>
+              <Txt variant="label" color={c.textSecondary}>{t('gender')}</Txt>
+              <SegmentedControl
+                options={[
+                  { key: '男', label: t('male') },
+                  { key: '女', label: t('female') },
+                ]}
+                value={form.gender}
+                onChange={(v) => updateForm('gender', v)}
+              />
+            </View>
+
+            {/* Age */}
+            <View style={{ gap: Tokens.space.sm }}>
+              <Txt variant="label" color={c.textSecondary}>{t('age')}</Txt>
+              <TextInput
+                style={inputStyle}
+                value={form.age.toString()}
+                onChangeText={(v) => updateForm('age', parseInt(v) || 0)}
+                keyboardType="numeric"
+                placeholderTextColor={c.textMuted}
+              />
+            </View>
+
+            {/* Height */}
+            <View style={{ gap: Tokens.space.sm }}>
+              <Txt variant="label" color={c.textSecondary}>{t('height')} (cm)</Txt>
+              <TextInput
+                style={inputStyle}
+                value={form.height.toString()}
+                onChangeText={(v) => updateForm('height', parseFloat(v) || 0)}
+                keyboardType="numeric"
+                placeholderTextColor={c.textMuted}
+              />
+            </View>
+
+            {/* Weight */}
+            <View style={{ gap: Tokens.space.sm }}>
+              <Txt variant="label" color={c.textSecondary}>{t('weight')} (kg)</Txt>
+              <TextInput
+                style={inputStyle}
+                value={form.weight.toString()}
+                onChangeText={(v) => updateForm('weight', parseFloat(v) || 0)}
+                keyboardType="numeric"
+                placeholderTextColor={c.textMuted}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: Tokens.space.md, marginTop: Tokens.space.sm }}>
+              <AppButton
+                label={t('cancel')}
+                variant="secondary"
+                full
+                onPress={() => setSheetVisible(false)}
+              />
+              <AppButton
+                label={t('save')}
+                variant="primary"
+                full
+                onPress={handleSaveUser}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </BottomSheet>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 40,
-    marginBottom: 10,
-  },
-  searchInput: {
-    flex: 1,
-    height: '100%',
-    fontSize: 16,
-    color: '#000',
-    marginLeft: 10,
-  },
-  userListContainer: {
-    height: 150,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    marginBottom: 20,
-    padding: 10,
-  },
-  userList: {
-    paddingBottom: 10,
-  },
-  userItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 5,
-  },
-  userId: {
-    overflow: "hidden",
-    width: 80,
-    fontSize: 14,
-    fontWeight: '600',
-    textOverflow: 'ellipsis',
-  },
-  userName: {
-    flex: 1,
-    fontSize: 14,
-    marginLeft: 10,
-  },
-  userGender: {
-    width: 40,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  userAge: {
-    width: 60,
-    fontSize: 14,
-    textAlign: 'right',
-  },
-  formContainer: {
-    flex: 1,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  formLabel: {
-    fontSize: 16,
-    marginBottom: 5,
-    fontWeight: '600',
-  },
-  textInput: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-  },
-  genderButtons: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  genderButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  genderButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  inputWithUnit: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-  unitText: {
-    fontSize: 16,
-    marginLeft: 10,
-    color: '#666',
-  },
-  checkButton: {
-    alignSelf: 'center',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  quickStartButton: {
-    alignSelf: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-  },
-  quickStartText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

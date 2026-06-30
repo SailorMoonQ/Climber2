@@ -13,8 +13,7 @@
       },
       "ios": {
         "image": "latest"
-      },
-      "production": {}
+      }
     },
     "development-simulator": {
       "extends": "development",

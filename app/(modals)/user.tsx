@@ -1,8 +1,7 @@
-import { Alert, Pressable, StyleSheet, TextInput } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useTokens } from '@/hooks/use-tokens';
+import { Tokens } from '@/constants/theme';
+import { AppButton, SegmentedControl, Txt } from '@/components/ui/primitives';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import DatabaseService from '@/services/database-service';
@@ -10,8 +9,7 @@ import { User } from '@/interface/user.interface';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function UserModalScreen() {
-  const colorScheme = useColorScheme();
-  const tintColor = Colors[colorScheme ?? 'light'].tint;
+  const { c } = useTokens();
   const params = useLocalSearchParams();
   const isEditMode = params.mode === 'edit';
   const userId = params.id as string;
@@ -130,203 +128,151 @@ export default function UserModalScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title">
+    <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={styles.header}>
+        <Txt variant="title">
           {isEditMode ? '编辑用户信息' : '新增用户'}
-        </ThemedText>
+        </Txt>
         <Pressable style={styles.closeButton} onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color={tintColor}/>
+          <Ionicons name="close" size={24} color={c.text}/>
         </Pressable>
-      </ThemedView>
+      </View>
 
-      <ThemedView style={styles.form}>
+      <View style={styles.form}>
         {/* 姓名输入 */}
-        <ThemedView style={styles.inputGroup}>
-          <ThemedText>姓名</ThemedText>
+        <View style={styles.inputGroup}>
+          <Txt variant="label" color={c.textSecondary}>姓名</Txt>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: c.surface2, borderColor: c.border, color: c.text },
+            ]}
             value={formData.name}
             onChangeText={(text) => setFormData({...formData, name: text})}
             placeholder="请输入姓名"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.textMuted}
           />
-        </ThemedView>
+        </View>
 
         {/* 性别选择 */}
-        <ThemedView style={styles.inputGroup}>
-          <ThemedText>性别</ThemedText>
-          <ThemedView style={styles.genderContainer}>
-            <Pressable
-              style={[
-                styles.genderButton,
-                formData.gender === '男' && {backgroundColor: tintColor},
+        <View style={styles.inputGroup}>
+          <Txt variant="label" color={c.textSecondary}>性别</Txt>
+          <View style={styles.genderContainer}>
+            <SegmentedControl
+              options={[
+                { key: '男', label: '男' },
+                { key: '女', label: '女' },
               ]}
-              onPress={() => handleGenderSelect('男')}
-            >
-              <ThemedText
-                style={[
-                  styles.genderButtonText,
-                  formData.gender === '男' && {color: 'white'},
-                ]}
-              >
-                男
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.genderButton,
-                formData.gender === '女' && {backgroundColor: tintColor},
-              ]}
-              onPress={() => handleGenderSelect('女')}
-            >
-              <ThemedText
-                style={[
-                  styles.genderButtonText,
-                  formData.gender === '女' && {color: 'white'},
-                ]}
-              >
-                女
-              </ThemedText>
-            </Pressable>
-          </ThemedView>
-        </ThemedView>
+              value={formData.gender}
+              onChange={handleGenderSelect}
+            />
+          </View>
+        </View>
 
         {/* 年龄输入 */}
-        <ThemedView style={styles.inputGroup}>
-          <ThemedText>年龄</ThemedText>
+        <View style={styles.inputGroup}>
+          <Txt variant="label" color={c.textSecondary}>年龄</Txt>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: c.surface2, borderColor: c.border, color: c.text },
+            ]}
             value={formData.age}
             onChangeText={(text) => setFormData({...formData, age: text})}
             placeholder="请输入年龄"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.textMuted}
             keyboardType="numeric"
           />
-        </ThemedView>
+        </View>
 
         {/* 身高输入 */}
-        <ThemedView style={styles.inputGroup}>
-          <ThemedText>身高 (cm)</ThemedText>
+        <View style={styles.inputGroup}>
+          <Txt variant="label" color={c.textSecondary}>身高 (cm)</Txt>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: c.surface2, borderColor: c.border, color: c.text },
+            ]}
             value={formData.height}
             onChangeText={(text) => setFormData({...formData, height: text})}
             placeholder="请输入身高"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.textMuted}
             keyboardType="numeric"
           />
-        </ThemedView>
+        </View>
 
         {/* 体重输入 */}
-        <ThemedView style={styles.inputGroup}>
-          <ThemedText>体重 (kg)</ThemedText>
+        <View style={styles.inputGroup}>
+          <Txt variant="label" color={c.textSecondary}>体重 (kg)</Txt>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: c.surface2, borderColor: c.border, color: c.text },
+            ]}
             value={formData.weight}
             onChangeText={(text) => setFormData({...formData, weight: text})}
             placeholder="请输入体重"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.textMuted}
             keyboardType="numeric"
           />
-        </ThemedView>
+        </View>
 
         {/* 提交按钮 */}
-        <Pressable
-          style={[styles.submitButton, loading && styles.disabledButton]}
+        <AppButton
+          label={loading ? '保存中...' : isEditMode ? '保存修改' : '添加用户'}
           onPress={handleSubmit}
           disabled={loading}
-        >
-          <ThemedText style={styles.submitButtonText} numberOfLines={1}>
-            {loading ? '保存中...' : isEditMode ? '保存修改' : '添加用户'}
-          </ThemedText>
-        </Pressable>
+          full
+          style={styles.submitButton}
+        />
 
         {/* 返回按钮 */}
-        <Pressable style={styles.cancelButton} onPress={() => router.back()}>
-          <ThemedText style={styles.cancelButtonText}>取消</ThemedText>
-        </Pressable>
-      </ThemedView>
-    </ThemedView>
+        <AppButton
+          label="取消"
+          variant="secondary"
+          onPress={() => router.back()}
+          full
+          style={styles.cancelButton}
+        />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    padding: Tokens.space.lg,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: Tokens.space.lg,
   },
   closeButton: {
-    padding: 10,
+    padding: Tokens.space.sm,
   },
   form: {
     flex: 1,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: Tokens.space.lg,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Tokens.radius.md,
+    padding: Tokens.space.md,
     fontSize: 16,
-    marginTop: 8,
-    backgroundColor: 'white',
+    marginTop: Tokens.space.sm,
   },
   genderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  genderButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginHorizontal: 5,
-    backgroundColor: '#f5f5f5',
-  },
-  genderButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
+    marginTop: Tokens.space.sm,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    width: '100%',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    paddingHorizontal: 20,
-    textAlign: 'center',
+    marginTop: Tokens.space.lg,
   },
   cancelButton: {
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-    backgroundColor: '#f5f5f5',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    color: '#333',
+    marginTop: Tokens.space.md,
   },
 });

@@ -31,6 +31,13 @@ function formatDuration(totalMinutes: number): string {
   return `${h}h ${m}m`;
 }
 
+// record.duration is stored in seconds → "m:ss" for the per-session log.
+function fmtClock(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 // ---------- component --------------------------------------------------------
 
 export default function UserManagementScreen() {
@@ -47,23 +54,26 @@ export default function UserManagementScreen() {
 
   const loadUsers = useCallback(async () => {
     try {
-      setLoading(true);
       await DatabaseService.init();
       const userList = await DatabaseService.getAllUsers();
       setUsers(userList);
 
-      if (userList.length > 0 && !selectedUser) {
-        setSelectedUser(userList[0]);
-      }
-      if (userList.length > 0 && !currentUser) {
-        setCurrentUser(userList[0]);
+      // Default-select the first user ONLY if nothing is selected yet. Functional
+      // updates keep this callback independent of selectedUser/currentUser — depending
+      // on them recreated loadUsers on every selection, which re-ran this loader and
+      // flashed the whole page through the loading spinner. Note: we intentionally do
+      // NOT setLoading(true) here — loading starts true on mount and is cleared after
+      // the first load, so focus/selection refetches stay silent.
+      if (userList.length > 0) {
+        setSelectedUser((prev) => prev ?? userList[0]);
+        setCurrentUser((prev) => prev ?? userList[0]);
       }
     } catch (err) {
       console.error('Failed to load users:', err);
     } finally {
       setLoading(false);
     }
-  }, [selectedUser, currentUser, setSelectedUser, setCurrentUser]);
+  }, [setSelectedUser, setCurrentUser]);
 
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
@@ -85,14 +95,10 @@ export default function UserManagementScreen() {
 
   // ---- handlers -----------------------------------------------------------
 
-  const handleUserSelect = useCallback(async (user: User) => {
+  const handleUserSelect = useCallback((user: User) => {
+    // Just update selection; the [selectedUser] effect loads this user's records.
+    // (Avoids a duplicate fetch + extra re-render on every tap.)
     setSelectedUser(user);
-    try {
-      const records = await DatabaseService.getExerciseRecordsByUserId(user.id);
-      setExerciseRecords(records);
-    } catch {
-      setExerciseRecords([]);
-    }
   }, [setSelectedUser]);
 
   const handleEditUser = useCallback((user: User) => {
@@ -126,7 +132,9 @@ export default function UserManagementScreen() {
 
   // ---- derived stats ------------------------------------------------------
 
-  const totalMinutes = exerciseRecords.reduce((s, r) => s + r.duration, 0);
+  // record.duration is stored in SECONDS — convert to minutes for the stats summary.
+  const totalSeconds = exerciseRecords.reduce((s, r) => s + r.duration, 0);
+  const totalMinutes = Math.round(totalSeconds / 60);
   const totalDistance = exerciseRecords.reduce((s, r) => s + r.distance, 0);
   const totalCalories = exerciseRecords.reduce((s, r) => s + r.calories, 0);
   const sessionCount = exerciseRecords.length;
@@ -366,8 +374,8 @@ export default function UserManagementScreen() {
                     <View style={styles.historyRight}>
                       <View style={styles.metricChip}>
                         <Txt variant="caption" color={c.textMuted}>{t('duration')}</Txt>
-                        <Metric value={record.duration} size="metricSm" />
-                        <Txt variant="caption" color={c.textSecondary}>min</Txt>
+                        <Metric value={fmtClock(record.duration)} size="metricSm" />
+                        <Txt variant="caption" color={c.textSecondary}>mm:ss</Txt>
                       </View>
                       <View style={styles.metricChip}>
                         <Txt variant="caption" color={c.textMuted}>{t('distance')}</Txt>

@@ -4,9 +4,9 @@ import DatabaseService from '@/services/database-service';
 
 interface UserContextType {
   selectedUser: User | null;
-  setSelectedUser: (user: User | null) => void;
+  setSelectedUser: React.Dispatch<React.SetStateAction<User | null>>;
   currentUser: User | null;
-  setCurrentUser: (user: User | null) => void;
+  setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
